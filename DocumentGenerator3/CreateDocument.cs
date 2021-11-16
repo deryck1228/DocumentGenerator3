@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using DocumentGenerator3.TemplateData;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -22,16 +23,25 @@ namespace DocumentGenerator3
 
             var payload = context.GetInput<DocumentGeneratorPayload>();
 
+            DocumentData documentData = new DocumentData() { originalPayload = payload};
+
+            documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
+
             // Durable Activity Function.
 
             return outputs;
         }
 
         [FunctionName("CreateDocument_GetTemplate_quickbase")]
-        public static string GetTemplateFromQuickbase([ActivityTrigger] string name, ILogger log)
+        public static byte[] GetTemplateFromQuickbase([ActivityTrigger] DocumentGeneratorPayload originalPayload, ILogger log)
         {
             log.LogInformation($"Fetching template document from Quickbase");
-            return $"Hello {name}!";
+
+            var service = new GetTemplateDataService_quickbase() { Settings = (TemplateSettings_quickbase)originalPayload.template_location.settings };
+
+            var fileData = service.GetFileContents();
+
+            return fileData;
         }
 
         [FunctionName("CreateDocument_HttpStart")]

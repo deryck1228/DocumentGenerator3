@@ -8,6 +8,6 @@ namespace DocumentGenerator3.TemplateData
 {
     public interface ITemplateLocation
     {
-        
+        public string service { get; set; }
     }
 }

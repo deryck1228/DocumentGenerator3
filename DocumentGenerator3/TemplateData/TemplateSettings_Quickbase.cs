@@ -3,8 +3,12 @@
 namespace DocumentGenerator3.TemplateData
 {
     [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class TemplateSettings_Quickbase : ITemplateLocation
+    public class TemplateSettings_quickbase : ITemplateLocation
     {
+        /// <summary>
+        /// The name of the specific service being invoked for this template
+        /// </summary>
+        public string service { get; set; }
         /// <summary>
         /// The main DBID of the Quickbase app in which the template is stored
         /// </summary>

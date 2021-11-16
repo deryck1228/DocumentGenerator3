@@ -1,10 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DocumentGenerator3.TemplateData
 {
@@ -16,6 +12,7 @@ namespace DocumentGenerator3.TemplateData
         {
             return objectType == typeof(ITemplateLocation);
         }
+
         public override void WriteJson(JsonWriter writer,
             object value, JsonSerializer serializer)
         {
@@ -27,20 +24,16 @@ namespace DocumentGenerator3.TemplateData
             JsonSerializer serializer)
         {
             var jsonObject = JObject.Load(reader);
-            var profession = default(ITemplateLocation);
+            //var template = default(ITemplateLocation);
 
-            switch (jsonObject["JobTitle"].ToString())
-            {
-                case "Software Developer":
-                    profession = new Programming();
-                    break;
-                case "Copywriter":
-                    profession = new Writing();
-                    break;
-            }
+            string serviceTypeName = $"DocumentGenerator3.TemplateData.TemplateSettings_{jsonObject["service"].ToString()}";
+            string objectToInstantiate = $"{serviceTypeName}, DocumentGenerator3";
 
-            serializer.Populate(jsonObject.CreateReader(), profession);
-            return profession;
+            var thisObjectType = Type.GetType(objectToInstantiate);
+            var template= Activator.CreateInstance(thisObjectType);
+
+            serializer.Populate(jsonObject.CreateReader(), template);
+            return template;
         }
     }
 }

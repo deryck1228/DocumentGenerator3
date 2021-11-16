@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
@@ -25,9 +26,9 @@ namespace DocumentGenerator3
 
             DocumentData documentData = new DocumentData() { originalPayload = payload};
 
-            documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
-
             // Durable Activity Function.
+            documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
+            documentData.parentData = await context.CallActivityAsync<List<KeyValuePair<string, string>>>("CreateDocument_GetParentData_quickbase", payload);
 
             return outputs;
         }
@@ -42,6 +43,18 @@ namespace DocumentGenerator3
             var fileData = service.GetFileContents();
 
             return fileData;
+        }
+
+        [FunctionName("CreateDocument_GetParentData_quickbase")]
+        public static List<KeyValuePair<string, string>> GetParentDataFromQuickbase([ActivityTrigger] DocumentGeneratorPayload originalPayload, ILogger log)
+        {
+            log.LogInformation($"Fetching parent data from Quickbase");
+
+            var service = new GetParentDatasetDataService_quickbase() { Settings = (ParentSettings_quickbase)originalPayload.parent_dataset.settings};
+
+            var parentData = service.GetParentData();
+
+            return parentData;
         }
 
         [FunctionName("CreateDocument_HttpStart")]

@@ -1,4 +1,5 @@
-﻿using DocumentGenerator3.TemplateData;
+﻿using DocumentGenerator3.ParentDatasetData;
+using DocumentGenerator3.TemplateData;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -39,40 +40,6 @@ namespace DocumentGenerator3
         /// A list of additional documents to be bound to the completed document as a pdf binder
         /// </summary>
         public List<AdditionalDocument> additional_documents { get; set; } = new List<AdditionalDocument>();
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class ParentDataset
-    {
-
-        public string service { get; set; }
-        public ParentSettings_Quickbase quickbase_settings { get; set; }
-
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class ParentSettings_Quickbase
-    {
-
-        public string app_dbid { get; set; }
-
-
-        public string table_dbid { get; set; }
-
-
-        public string realm { get; set; }
-
-
-        public string apptoken { get; set; }
-
-
-        public string usertoken { get; set; }
-
-
-        public string rid { get; set; }
-
-
-        public string merge_field_id { get; set; }
     }
 
 

@@ -1,4 +1,5 @@
-﻿using DocumentGenerator3.ParentDatasetData;
+﻿using DocumentGenerator3.ChildDatasetData;
+using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
 using Newtonsoft.Json;
 using System;
@@ -67,47 +68,6 @@ namespace DocumentGenerator3
         public string query { get; set; }
 
         public string attachment_fid { get; set; }
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class ChildDataset
-    {
-
-        public string service { get; set; }
-        public ChildSettings_Quickbase quickbase_settings { get; set; }
-
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class ChildSettings_Quickbase
-    {
-
-        public string app_dbid { get; set; }
-
-
-        public string table_dbid { get; set; }
-
-
-        public string realm { get; set; }
-
-
-        public string apptoken { get; set; }
-
-
-        public string usertoken { get; set; }
-
-
-        public string id { get; set; }
-
-
-        public string query { get; set; }
-
-
-        public string field_order { get; set; }
-
-
-        public string column_headers { get; set; }
-
     }
 
     [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]

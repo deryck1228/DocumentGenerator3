@@ -37,5 +37,9 @@ namespace DocumentGenerator3.TemplateData
         /// The id of the field in which teh template document is stored
         /// </summary>
         public string document_fid { get; set; }
+        /// <summary>
+        /// The document type of the template document
+        /// </summary>
+        public string template_type { get; set; } = "word";
     }
 }

@@ -2,15 +2,15 @@
 using Newtonsoft.Json.Linq;
 using System;
 
-namespace DocumentGenerator3.ParentDatasetData
+namespace DocumentGenerator3.ChildDatasetData
 {
-    public class ParentDatasetConverter : JsonConverter
+    public class ChildDatasetConverter : JsonConverter
     {
         public override bool CanWrite => false;
         public override bool CanRead => true;
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(IParentSettings);
+            return objectType == typeof(IChildSettings);
         }
 
         public override void WriteJson(JsonWriter writer,
@@ -26,14 +26,14 @@ namespace DocumentGenerator3.ParentDatasetData
             var jsonObject = JObject.Load(reader);
             //var template = default(ITemplateLocation);
 
-            string serviceTypeName = $"DocumentGenerator3.ParentDatasetData.ParentSettings_{jsonObject["service"].ToString()}";
+            string serviceTypeName = $"DocumentGenerator3.ChildDatasetData.ChildSettings_{jsonObject["service"].ToString()}";
             string objectToInstantiate = $"{serviceTypeName}, DocumentGenerator3";
 
             var thisObjectType = Type.GetType(objectToInstantiate);
-            var parentDataset = Activator.CreateInstance(thisObjectType);
+            var childDataset = Activator.CreateInstance(thisObjectType);
 
-            serializer.Populate(jsonObject.CreateReader(), parentDataset);
-            return parentDataset;
+            serializer.Populate(jsonObject.CreateReader(), childDataset);
+            return childDataset;
         }
     }
 }

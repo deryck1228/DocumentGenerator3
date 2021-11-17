@@ -24,7 +24,6 @@ namespace DocumentGenerator3.TemplateData
             JsonSerializer serializer)
         {
             var jsonObject = JObject.Load(reader);
-            //var template = default(ITemplateLocation);
 
             string serviceTypeName = $"DocumentGenerator3.TemplateData.TemplateSettings_{jsonObject["service"].ToString()}";
             string objectToInstantiate = $"{serviceTypeName}, DocumentGenerator3";

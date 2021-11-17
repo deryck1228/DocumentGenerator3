@@ -27,8 +27,22 @@ namespace DocumentGenerator3
             DocumentData documentData = new DocumentData() { originalPayload = payload};
 
             // Durable Activity Function.
-            documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
-            documentData.parentData = await context.CallActivityAsync<List<KeyValuePair<string, string>>>("CreateDocument_GetParentData_quickbase", payload);
+            //documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
+            //documentData.parentData = await context.CallActivityAsync<List<KeyValuePair<string, string>>>("CreateDocument_GetParentData_quickbase", payload);
+
+            var parallelActivities = new List<Task>();
+
+            Task<byte[]> templateTask = context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
+            Task<List<KeyValuePair<string, string>>> parentDataTask = context.CallActivityAsync<List<KeyValuePair<string, string>>>("CreateDocument_GetParentData_quickbase", payload);
+
+            parallelActivities.Add(templateTask);
+            parallelActivities.Add(parentDataTask);
+
+            await Task.WhenAll(parallelActivities);
+
+            documentData.fileContents = templateTask.Result;
+            documentData.parentData = parentDataTask.Result;
+
 
             return outputs;
         }

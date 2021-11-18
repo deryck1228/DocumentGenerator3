@@ -30,7 +30,7 @@ namespace DocumentGenerator3.ChildDatasetData
             {
                 Uri = "https://api.quickbase.com/v1/records/query";
                 json = "{\"from\":\"" + Metadata.childDataset.table_dbid + "\"," +
-                    "\"select\":[" + String.Join(",", Metadata.childDataset.field_order.ToArray()) + "]," +
+                    "\"select\":[" + Metadata.childDataset.field_order + "]," +
                     "\"where\":\"" + Metadata.childDataset.query + "\"," +
                     "\"options\":{\"skip\":" + Metadata.skip + "}}";
             }

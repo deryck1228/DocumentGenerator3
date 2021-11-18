@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentAssembly;
+using DocumentGenerator3.DocumentDelivery;
 using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
 using Microsoft.Azure.WebJobs;
@@ -54,8 +55,13 @@ namespace DocumentGenerator3
                 documentData.listOfTableCSVs.AddRange(childTask.Result); 
             }
 
-            //TODO Add in document assembly
-            documentData.fileContents = await context.CallActivityAsync<byte[]>("CreateDocument_AddDataToTemplate_word", documentData);
+            documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_AddDataToTemplate_{payload.template_location.settings.template_type}", documentData);
+
+            //TODO Transform to .pdf if necessary
+
+            //TODO Deliver document
+
+            documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_DeliverDocument_{payload.delivery_method.settings.service}", documentData);
 
             return outputs;
         }
@@ -118,6 +124,18 @@ namespace DocumentGenerator3
             byte[] completedDoc = service.AssembleData();
 
             return completedDoc;
+        }
+
+        [FunctionName("CreateDocument_DeliverDocument_quickbase")]
+        public static DocumentData SendTCompleteDocumentToQuickbase([ActivityTrigger] DocumentData documentData, ILogger log)
+        {
+            log.LogInformation("Sending completed document to Quickbase");
+
+            var service = new DeliverDocumentService_quickbase() { DocumentData = documentData};
+
+            DocumentData completedDocument = service.SendToQuickbase();
+
+            return completedDocument;
         }
 
         [FunctionName("CreateDocument_HttpStart")]

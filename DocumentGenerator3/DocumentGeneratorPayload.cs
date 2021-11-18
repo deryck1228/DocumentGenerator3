@@ -1,11 +1,10 @@
 ﻿using DocumentGenerator3.ChildDatasetData;
+using DocumentGenerator3.DocumentDelivery;
 using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
 using Newtonsoft.Json;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -68,76 +67,6 @@ namespace DocumentGenerator3
         public string query { get; set; }
 
         public string attachment_fid { get; set; }
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class DeliveryMethod
-    {
-
-
-        public string service { get; set; }
-        public DeliverySettings_Email email_settings { get; set; }
-        public DeliverSettings_Quickbase quickbase_settings { get; set; }
-
-        [OnDeserialized]
-        internal void OnDeserializedMethod(StreamingContext context)
-        {
-            if (service.ToLower() == "quickbase" && quickbase_settings is null)
-            {
-                throw new InvalidOperationException("quickbase_settings must be supplied if service is set to 'quickbase'");
-            }
-            if (service.ToLower() == "email" && email_settings is null)
-            {
-                throw new InvalidOperationException("email_settings must be supplied if service is set to 'email'");
-            }
-        }
-
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class DeliverySettings_Email
-    {
-
-        public string from_name { get; set; }
-
-
-        public string to_name { get; set; }
-
-
-        public string to_email { get; set; }
-
-
-        public string subject_line { get; set; }
-
-
-        public string body_text { get; set; }
-    }
-
-    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
-    public class DeliverSettings_Quickbase
-    {
-
-        public string app_dbid { get; set; }
-
-
-        public string table_dbid { get; set; }
-
-
-        public string realm { get; set; }
-
-
-        public string apptoken { get; set; }
-
-
-        public string usertoken { get; set; }
-
-
-        public string rid { get; set; }
-
-
-        public string document_field_id { get; set; }
-
-        public string document_field_data { get; set; } = "";
     }
 
     [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]

@@ -18,7 +18,4 @@
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="ImageHandling\" />
-  </ItemGroup>
 </Project>

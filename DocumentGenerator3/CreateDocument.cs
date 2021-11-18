@@ -9,6 +9,7 @@ using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentAssembly;
 using DocumentGenerator3.DocumentDelivery;
 using DocumentGenerator3.ParentDatasetData;
+using DocumentGenerator3.PdfConversion;
 using DocumentGenerator3.TemplateData;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
@@ -57,9 +58,10 @@ namespace DocumentGenerator3
 
             documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_AddDataToTemplate_{payload.template_location.settings.template_type}", documentData);
 
-            //TODO Transform to .pdf if necessary
-
-            //TODO Deliver document
+            if(payload.document_type == ".pdf")
+            {
+                documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_ConvertToPdf", documentData);
+            }
 
             documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_DeliverDocument_{payload.delivery_method.settings.service}", documentData);
 
@@ -127,7 +129,7 @@ namespace DocumentGenerator3
         }
 
         [FunctionName("CreateDocument_DeliverDocument_quickbase")]
-        public static DocumentData SendTCompleteDocumentToQuickbase([ActivityTrigger] DocumentData documentData, ILogger log)
+        public static DocumentData SendCompleteDocumentToQuickbase([ActivityTrigger] DocumentData documentData, ILogger log)
         {
             log.LogInformation("Sending completed document to Quickbase");
 
@@ -136,6 +138,30 @@ namespace DocumentGenerator3
             DocumentData completedDocument = service.SendToQuickbase();
 
             return completedDocument;
+        }
+
+        [FunctionName("CreateDocument_ConvertToPdf")]
+        public async static Task<DocumentData> ConvertDocumentToPdf([ActivityTrigger] DocumentData documentData, ILogger log)
+        {
+            log.LogInformation("Converting document to pdf");
+
+            var service = new ConvertToPdfService() { DocumentData = documentData };
+
+            documentData = service.SendJobToCloudConvert();
+
+            do
+            {
+                documentData = await service.GetCompletedJob();
+            }while (documentData.CloudConvertStatus != "finished" && documentData.CloudConvertStatus != "error");
+
+            if(documentData.CloudConvertStatus == "error")
+            {
+                throw new Exception("Conversion to pdf failed");
+            }
+
+            documentData = service.DownloadPdf();
+
+            return documentData;
         }
 
         [FunctionName("CreateDocument_HttpStart")]

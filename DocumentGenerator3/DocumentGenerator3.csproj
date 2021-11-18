@@ -19,6 +19,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="NewFolder\" />
+    <Folder Include="ImageHandling\" />
   </ItemGroup>
 </Project>

@@ -1,45 +1,60 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace DocumentGenerator3.PdfConversion
+namespace DocumentGenerator3.AdditionalDocumentsToBind
 {
-    public class CreateDocumentLinks 
-    { 
-        public List<KeyValuePair<string, string>> GetDocumentLinksFromQuickbase(AdditionalDocument_Quickbase thisDocLink)
+    [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
+    public class AdditionalDocument_quickbase : IAdditionalDocument
+    {
+        public string service { get; set; }
+        public string app_dbid { get; set; }
+
+        public string table_dbid { get; set; }
+
+        public string realm { get; set; }
+
+        public string apptoken { get; set; }
+
+        public string usertoken { get; set; }
+
+        public string query { get; set; }
+
+        public string qid { get; set; } = "";
+        public string file_attachemnt_fid { get; set; }
+
+        public List<KeyValuePair<string, string>> GetDocumentLinks()
         {
 
             List<KeyValuePair<string, string>> QuickbaseDownloadLinks = new List<KeyValuePair<string, string>>();
 
-            string authtoken = "QB-USER-TOKEN " + thisDocLink.usertoken;
+            string authtoken = "QB-USER-TOKEN " + usertoken;
             string resultsData = "";
             var quickBaseValues = new List<KeyValuePair<string, string>>();
             string Uri = "";
             string json = "";
 
 
-            if (thisDocLink.qid != "")
+            if (qid != "")
             {
-                Uri = "https://api.quickbase.com/v1/reports/" + thisDocLink.qid + "/run?tableId=" + thisDocLink.table_dbid;
+                Uri = "https://api.quickbase.com/v1/reports/" + qid + "/run?tableId=" + table_dbid;
                 json = "";
             }
             else
             {
                 Uri = "https://api.quickbase.com/v1/records/query";
-                json = "{\"from\":\"" + thisDocLink.table_dbid + "\"," +
-                    "\"select\":[3," + thisDocLink.file_attachemnt_fid + "]," +
-                    "\"where\":\"" + thisDocLink.query + "\"}";
+                json = "{\"from\":\"" + table_dbid + "\"," +
+                    "\"select\":[3," + file_attachemnt_fid + "]," +
+                    "\"where\":\"" + query + "\"}";
             }
             WebRequest request = WebRequest.Create(Uri);
 
             request.Method = "POST";
             request.ContentType = "application/json";
-            request.Headers.Add("QB-Realm-Hostname", thisDocLink.realm);
+            request.Headers.Add("QB-Realm-Hostname", realm);
             request.Headers.Add("User-Agent", "Azure_Serverless_Functions");
             request.Headers.Add("Authorization", authtoken);
 
@@ -67,8 +82,8 @@ namespace DocumentGenerator3.PdfConversion
             foreach (var item in items)
             {
                 var thisRid = item["3"]["value"].ToString();
-                var thisDocName = item[thisDocLink.file_attachemnt_fid]["value"]["versions"][0]["fileName"].ToString();
-                string thisLink = $"https://{thisDocLink.realm}/up/{thisDocLink.table_dbid}/a/r{thisRid}/e{thisDocLink.file_attachemnt_fid}/v0?usertoken={thisDocLink.usertoken}";
+                var thisDocName = item[file_attachemnt_fid]["value"]["versions"][0]["fileName"].ToString();
+                string thisLink = $"https://{realm}/up/{table_dbid}/a/r{thisRid}/e{file_attachemnt_fid}/v0?usertoken={usertoken}";
                 QuickbaseDownloadLinks.Add(new KeyValuePair<string, string>(thisDocName, thisLink));
             }
 

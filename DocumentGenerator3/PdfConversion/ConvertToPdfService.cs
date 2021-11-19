@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using DocumentGenerator3.AdditionalDocumentsToBind;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -31,17 +32,13 @@ namespace DocumentGenerator3.PdfConversion
 
             foreach (var doc in DocumentData.originalPayload.additional_documents)
             {
-                var service = new CreateDocumentLinks();
-                if (doc.quickbase_link != null)
-                {
-                    DocumentData.CloudConvertDocumentLinks.AddRange(service.GetDocumentLinksFromQuickbase(doc.quickbase_link));
-                }
-                if (doc.direct_link != null)
-                {
-                    List<KeyValuePair<string, string>> thisList = new List<KeyValuePair<string, string>>();
-                    thisList.Add(new KeyValuePair<string, string>(doc.direct_link.doc_name, doc.direct_link.link));
-                    DocumentData.CloudConvertDocumentLinks.AddRange(thisList);
-                }
+                string serviceTypeName = $"DocumentGenerator3.AdditionalDocumentsToBind.CreateDocumentLinks_{doc.settings.service}";
+                string objectToInstantiate = $"{serviceTypeName}, DocumentGenerator3";
+
+                var thisObjectType = Type.GetType(objectToInstantiate);
+                var additionalDocument = Activator.CreateInstance(thisObjectType) as IAdditionalDocument;
+
+                DocumentData.CloudConvertDocumentLinks.AddRange(additionalDocument.GetDocumentLinks());
             }
 
             if (DocumentData.originalPayload.additional_documents.Count > 0)

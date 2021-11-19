@@ -14,12 +14,9 @@ steps:
   displayName: 'Run a one-line script'
 
 - script: |
-    $sourceURL = "https://$(GitHubPAT)@$(GitHubRepo)"
-    echo $sourceURL
-    $destinationURL = "https://$(AzureDevOpsPAT)@$(AzureDevOpsRepo)"
-    git clone --mirror $sourceURL
+    git clone --mirror https://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@github.com/deryck1228/DocumentGenerator3.git
     git remote rm origin
-    git remote add --mirror=fetch origin $destinationURL
-    git fetch $sourceURL
+    git remote add --mirror=fetch origin https://27det74nzg7dmrmwikyz7utlj7psmceqws5fqvcr5rbtcrjqkqea@dev.azure.com/QuandaryCG/_git/Quandary%20Document%20Generator
+    git fetch https://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@github.com/deryck1228/DocumentGenerator3.git
     git push origin --all -f 
   displayName: 'Run a multi-line script'

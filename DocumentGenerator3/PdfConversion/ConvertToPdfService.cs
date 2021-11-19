@@ -32,11 +32,13 @@ namespace DocumentGenerator3.PdfConversion
 
             foreach (var doc in DocumentData.originalPayload.additional_documents)
             {
-                string serviceTypeName = $"DocumentGenerator3.AdditionalDocumentsToBind.CreateDocumentLinks_{doc.settings.service}";
+                string serviceTypeName = $"DocumentGenerator3.AdditionalDocumentsToBind.AdditionalDocument_{doc.settings.service}";
                 string objectToInstantiate = $"{serviceTypeName}, DocumentGenerator3";
 
                 var thisObjectType = Type.GetType(objectToInstantiate);
                 var additionalDocument = Activator.CreateInstance(thisObjectType) as IAdditionalDocument;
+
+                additionalDocument = doc.settings;
 
                 DocumentData.CloudConvertDocumentLinks.AddRange(additionalDocument.GetDocumentLinks());
             }

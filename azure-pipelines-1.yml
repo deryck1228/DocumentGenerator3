@@ -15,6 +15,7 @@ steps:
 
 - script: |
     $sourceURL = "https://$(GitHubPAT)@$(GitHubRepo)"
+    echo $sourceURL
     $destinationURL = "https://$(AzureDevOpsPAT)@$(AzureDevOpsRepo)"
     git clone --mirror $sourceURL
     git remote rm origin

@@ -1,12 +1,8 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using DocumentGenerator3.DocumentDelivery.Email;
+using Microsoft.Extensions.Configuration;
 using SendGrid;
 using SendGrid.Helpers.Mail;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DocumentGenerator3.DocumentDelivery
 {
@@ -29,19 +25,10 @@ namespace DocumentGenerator3.DocumentDelivery
             stream.Seek(0, SeekOrigin.Begin);
 
             string documentName = DocumentData.originalPayload.document_name + DocumentData.originalPayload.document_type;
-            string mimeType = "";
 
-            //TODO refactor to improve for Open/Close
+            var mimeHandler = new MimeHandler();
 
-            switch (DocumentData.originalPayload.document_type)
-            {
-                case ".pdf":
-                    mimeType = "application/pdf";
-                    break;
-                case ".docx":
-                    mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-                    break;
-            }
+            string mimeType = mimeHandler.GetMimeValues(DocumentData.originalPayload.document_type);
 
             var client = new SendGridClient(apiKey);
             var from = new EmailAddress(fromEmailAddress, emailSettings.from_name);

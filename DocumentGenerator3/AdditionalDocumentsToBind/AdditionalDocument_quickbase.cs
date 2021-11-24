@@ -10,20 +10,37 @@ namespace DocumentGenerator3.AdditionalDocumentsToBind
     [JsonObject(ItemNullValueHandling = NullValueHandling.Ignore)]
     public class AdditionalDocument_quickbase : IAdditionalDocument
     {
+        /// <summary>
+        /// The name of the specific service being invoked for this additional document
+        /// </summary>
         public string service { get; set; }
+        /// <summary>
+        /// The main DBID of the Quickbase app in which the additional document is stored
+        /// </summary>
         public string app_dbid { get; set; }
-
+        /// <summary>
+        /// The DBID of the Quickbase table in which the additional document is stored
+        /// </summary>
         public string table_dbid { get; set; }
-
+        /// <summary>
+        /// The Quickbase realm in which the additional document is stored
+        /// </summary>
         public string realm { get; set; }
-
+        /// <summary>
+        /// The apptoken used to access data for the additional document
+        /// </summary>
         public string apptoken { get; set; }
-
+        /// <summary>
+        /// The usertoken used to access teh data for the additional document
+        /// </summary>
         public string usertoken { get; set; }
-
+        /// <summary>
+        /// The Quickbase query string used to select the additional document
+        /// </summary>
         public string query { get; set; }
-
-        public string qid { get; set; } = "";
+        /// <summary>
+        /// The field id of the field in Quickbase in which the additional document resides
+        /// </summary>
         public string file_attachemnt_fid { get; set; }
 
         public List<KeyValuePair<string, string>> GetDocumentLinks()
@@ -34,22 +51,12 @@ namespace DocumentGenerator3.AdditionalDocumentsToBind
             string authtoken = "QB-USER-TOKEN " + usertoken;
             string resultsData = "";
             var quickBaseValues = new List<KeyValuePair<string, string>>();
-            string Uri = "";
-            string json = "";
 
+            string Uri = "https://api.quickbase.com/v1/records/query";
+            string json = "{\"from\":\"" + table_dbid + "\"," +
+                "\"select\":[3," + file_attachemnt_fid + "]," +
+                "\"where\":\"" + query + "\"}";
 
-            if (qid != "")
-            {
-                Uri = "https://api.quickbase.com/v1/reports/" + qid + "/run?tableId=" + table_dbid;
-                json = "";
-            }
-            else
-            {
-                Uri = "https://api.quickbase.com/v1/records/query";
-                json = "{\"from\":\"" + table_dbid + "\"," +
-                    "\"select\":[3," + file_attachemnt_fid + "]," +
-                    "\"where\":\"" + query + "\"}";
-            }
             WebRequest request = WebRequest.Create(Uri);
 
             request.Method = "POST";

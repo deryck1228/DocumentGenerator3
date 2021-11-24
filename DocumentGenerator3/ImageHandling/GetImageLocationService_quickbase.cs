@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace DocumentGenerator3.ImageHandling
 {
-    internal class GetImageLocationService_quickbase
+    public class GetImageLocationService_quickbase
     {
     }
 }

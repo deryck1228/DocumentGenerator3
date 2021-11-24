@@ -15,6 +15,7 @@ namespace DocumentGenerator3
         public DocumentGeneratorPayload originalPayload { get; set; }
         public List<KeyValuePair<string, string>> parentData { get; set; }
         public List<KeyValuePair<string, string>> listOfTableCSVs { get; set; } = new();
+        //public List<byte[]> listOfImages { get; set; } = new();
         public Exception errorMessage { get; set; }
         //public Response emailResponse { get; set; }
         public string CloudConvertJobURL { get; set; }

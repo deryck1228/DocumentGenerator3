@@ -1,6 +1,7 @@
 ﻿using DocumentGenerator3.AdditionalDocumentsToBind;
 using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentDelivery;
+using DocumentGenerator3.ImageHandling;
 using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
 using System.Collections.Generic;
@@ -40,5 +41,9 @@ namespace DocumentGenerator3
         /// A list of additional documents to be bound to the completed document as a pdf binder
         /// </summary>
         public List<AdditionalDocument> additional_documents { get; set; } = new List<AdditionalDocument>();
+        /// <summary>
+        /// A list of image locations from which images can be downloaded and inserted into the document
+        /// </summary>
+        public List<ImageLocation> image_locations { get; set; } = new List<ImageLocation>();
     }
 }

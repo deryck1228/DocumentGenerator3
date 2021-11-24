@@ -111,20 +111,20 @@ namespace DocumentGenerator3.PdfConversion
             {
                 if (doc.Value == "self")
                 {
-                    CloudConvertImportBase64 importQBDoc = new CloudConvertImportBase64()
+                    CloudConvertImportBase64 importDoc = new CloudConvertImportBase64()
                     {
                         File = encodedDocument,
                         Filename = doc.Key,
-                        Name = "importQBDoc"
+                        Name = "importDoc"
                     };
 
-                    Job.Tasks.Add(importQBDoc);
+                    Job.Tasks.Add(importDoc);
                 }
                 else
                 {
                     CloudConvertImportUrl thisAdditionalDoc = new CloudConvertImportUrl()
                     {
-                        Name = "importQBAdditionalDoc" + docIterator.ToString(),
+                        Name = "importAdditionalDoc" + docIterator.ToString(),
                         Filename = doc.Key,
                         Url = doc.Value
                     };

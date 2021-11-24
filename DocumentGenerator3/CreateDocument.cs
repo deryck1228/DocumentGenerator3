@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentAssembly;
 using DocumentGenerator3.DocumentDelivery;
+using DocumentGenerator3.ImageHandling;
 using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.PdfConversion;
 using DocumentGenerator3.TemplateData;
@@ -33,6 +34,7 @@ namespace DocumentGenerator3
 
             var parallelActivities = new List<Task>();
             var listOfChildTasks = new List<Task>();
+            var listOfImageDownloads = new List<Task>();
 
             Task<byte[]> templateTask = context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
             parallelActivities.Add(templateTask);
@@ -47,6 +49,13 @@ namespace DocumentGenerator3
                 listOfChildTasks.Add(childTask);
             }
 
+            foreach( ImageLocation imageLink in payload.image_locations)
+            {
+                Task<ImageLocation> imageTask = context.CallActivityAsync<ImageLocation>($"CreateDocument_GetImage_{imageLink.settings.service}", imageLink);
+                parallelActivities.Add(imageTask);
+                listOfImageDownloads.Add(imageTask);
+            }
+
             await Task.WhenAll(parallelActivities);
 
             documentData.fileContents = templateTask.Result;
@@ -54,6 +63,11 @@ namespace DocumentGenerator3
             foreach (Task<List<KeyValuePair<string, string>>> childTask in listOfChildTasks)
             {
                 documentData.listOfTableCSVs.AddRange(childTask.Result); 
+            }
+
+            foreach (Task<ImageLocation> task in listOfImageDownloads)
+            {
+                documentData.originalPayload.image_locations.Add(task.Result);
             }
 
             documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_AddDataToTemplate_{payload.template_location.settings.template_type}", documentData);
@@ -162,6 +176,16 @@ namespace DocumentGenerator3
             documentData = service.DownloadPdf();
 
             return documentData;
+        }
+
+        [FunctionName("CreateDocument_GetImage_quickbase")]
+        public static ImageLocation GetImageBytesFromQuickbase([ActivityTrigger] ImageLocation imageLocation, ILogger log)
+        {
+            log.LogInformation("Downloading image from Quickbase");
+
+            imageLocation.settings.DownloadImage();
+
+            return imageLocation;
         }
 
         [FunctionName("CreateDocument_HttpStart")]

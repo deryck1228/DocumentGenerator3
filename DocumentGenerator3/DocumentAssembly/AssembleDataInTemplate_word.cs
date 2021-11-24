@@ -5,6 +5,13 @@ using System.Linq;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using System.IO;
+using DocumentGenerator3.ImageHandling;
+using System.Runtime.Serialization.Formatters.Binary;
+using DocumentFormat.OpenXml;
+using System.Drawing;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 
 namespace DocumentGenerator3.DocumentAssembly
 {
@@ -44,6 +51,14 @@ namespace DocumentGenerator3.DocumentAssembly
 
                 PopulateAllRuns(wdDoc);
 
+                foreach (var img in fileData.originalPayload.image_locations)
+                {
+                    if (img.settings.image_bytes != null)
+                    {
+                        InsertPicture(wdDoc, img.settings); 
+                    }
+                }
+
                 wdDoc.MainDocumentPart.Document.Save();
                 wdDoc.Close();
                 stream.Seek(0, SeekOrigin.Begin);
@@ -56,6 +71,26 @@ namespace DocumentGenerator3.DocumentAssembly
             stream.Close();
 
             return fileData.fileContents;
+        }
+
+        private void InsertPicture(WordprocessingDocument wordprocessingDocument, IImageSettings imageSettings)
+        {
+            MainDocumentPart mainPart = wordprocessingDocument.MainDocumentPart;
+
+            ImagePart imagePart = mainPart.AddImagePart(ImagePartType.Jpeg);
+
+            //ImagePart ip = wordprocessingDocument.MainDocumentPart.AddImagePart(ImagePartType.Jpeg);
+
+            MemoryStream memStream = new MemoryStream();
+
+            memStream.Write(imageSettings.image_bytes, 0, imageSettings.image_bytes.Length);
+            memStream.Seek(0, SeekOrigin.Begin);
+
+            imagePart.FeedData(memStream);
+
+            string imageSlug = $"~~{imageSettings.image_id}~~";
+
+            AddImageToBody(wordprocessingDocument, mainPart.GetIdOfPart(imagePart), imageSlug, imageSettings.image_width, imageSettings.image_height);
         }
 
         private static void PopulateAllRuns(WordprocessingDocument wdDoc)
@@ -88,6 +123,101 @@ namespace DocumentGenerator3.DocumentAssembly
                     }       
                 }
             }
+        }
+
+        private static void AddImageToBody(WordprocessingDocument wordDoc, string relationshipId, string imageSlug, int imageWidth = 50, int imageHeight = 50)
+        {
+            Size size = new Size(imageWidth, imageHeight);
+
+            Int64Value width = size.Width * 9525;
+            Int64Value height = size.Height * 9525;
+
+            // Define the reference of the image.
+            var element =
+                 new Drawing(
+                     new DW.Inline(
+                         new DW.Extent() { Cx = width, Cy = height },
+                         new DW.EffectExtent()
+                         {
+                             LeftEdge = 0L,
+                             TopEdge = 0L,
+                             RightEdge = 0L,
+                             BottomEdge = 0L
+                         },
+                         new DW.DocProperties()
+                         {
+                             Id = (UInt32Value)1U,
+                             Name = "Picture 1"
+                         },
+                         new DW.NonVisualGraphicFrameDrawingProperties(
+                             new A.GraphicFrameLocks() { NoChangeAspect = true }),
+                         new A.Graphic(
+                             new A.GraphicData(
+                                 new PIC.Picture(
+                                     new PIC.NonVisualPictureProperties(
+                                         new PIC.NonVisualDrawingProperties()
+                                         {
+                                             Id = (UInt32Value)0U,
+                                             Name = "New Bitmap Image.jpg"
+                                         },
+                                         new PIC.NonVisualPictureDrawingProperties()),
+                                     new PIC.BlipFill(
+                                         new A.Blip(
+                                             new A.BlipExtensionList(
+                                                 new A.BlipExtension()
+                                                 {
+                                                     Uri =
+                                                        "{28A0092B-C50C-407E-A947-70E740481C1C}"
+                                                 })
+                                         )
+                                         {
+                                             Embed = relationshipId,
+                                             CompressionState =
+                                             A.BlipCompressionValues.Print
+                                         },
+                                         new A.Stretch(
+                                             new A.FillRectangle())),
+                                     new PIC.ShapeProperties(
+                                         new A.Transform2D(
+                                             new A.Offset() { X = 0L, Y = 0L },
+                                             new A.Extents() { Cx = 990000L, Cy = 792000L }),
+                                         new A.PresetGeometry(
+                                             new A.AdjustValueList()
+                                         )
+                                         { Preset = A.ShapeTypeValues.Rectangle }))
+                             )
+                             { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" })
+                     )
+                     {
+                         DistanceFromTop = (UInt32Value)0U,
+                         DistanceFromBottom = (UInt32Value)0U,
+                         DistanceFromLeft = (UInt32Value)0U,
+                         DistanceFromRight = (UInt32Value)0U,
+                         EditId = "50D07946"
+                     });
+
+            Paragraph paragraphWithSlug = wordDoc.MainDocumentPart.Document.Body.Descendants().FirstOrDefault(r => r.InnerText == imageSlug) as Paragraph;
+            Run runWithSlug = paragraphWithSlug.Descendants().FirstOrDefault(r => r.InnerText == imageSlug) as Run;
+            runWithSlug.Remove();
+
+            paragraphWithSlug.Parent.AppendChild(new Paragraph(new Run(element)));
+
+            wordDoc.MainDocumentPart.Document.Save();
+        }
+
+        private string AddGraph(WordprocessingDocument wpd, IImageSettings imageSettings, byte[] imageData)
+        {
+            ImagePart ip = wpd.MainDocumentPart.AddImagePart(imageSettings.image_extension);
+
+            MemoryStream memStream = new MemoryStream();
+
+            memStream.Write(imageData, 0, imageData.Length);
+            memStream.Seek(0, SeekOrigin.Begin);
+
+            if (memStream.Length == 0) return string.Empty;
+            ip.FeedData(memStream);
+
+            return wpd.MainDocumentPart.GetIdOfPart(ip);
         }
 
         private void AddChildDataToDocument(Body bod)

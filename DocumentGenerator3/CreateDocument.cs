@@ -16,6 +16,7 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DocumentGenerator3
@@ -26,6 +27,11 @@ namespace DocumentGenerator3
         public static async Task<List<string>> RunOrchestrator(
             [OrchestrationTrigger] IDurableOrchestrationContext context)
         {
+            var config = new ConfigurationBuilder()
+                  .AddEnvironmentVariables()
+                  .Build();
+            var pdfServiceName = config["PdfServiceName"];
+
             var outputs = new List<string>();
 
             var payload = context.GetInput<DocumentGeneratorPayload>();
@@ -74,7 +80,7 @@ namespace DocumentGenerator3
 
             if(payload.document_type == ".pdf")
             {
-                documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_ConvertToPdf", documentData);
+                documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_ConvertToPdf_{pdfServiceName}", documentData);
             }
 
             documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_DeliverDocument_{payload.delivery_method.settings.service}", documentData);
@@ -154,14 +160,14 @@ namespace DocumentGenerator3
             return completedDocument;
         }
 
-        [FunctionName("CreateDocument_ConvertToPdf")]
-        public async static Task<DocumentData> ConvertDocumentToPdf([ActivityTrigger] DocumentData documentData, ILogger log)
+        [FunctionName("CreateDocument_ConvertToPdf_cloud_convert")]
+        public async static Task<DocumentData> ConvertDocumentToPdf_cloud_convert([ActivityTrigger] DocumentData documentData, ILogger log)
         {
-            log.LogInformation("Converting document to pdf");
+            log.LogInformation("Converting document to pdf via Cloud Convert API");
 
-            var service = new ConvertToPdfService() { DocumentData = documentData };
+            var service = new ConvertToPdfService_cloud_convert() { DocumentData = documentData };
 
-            documentData = service.SendJobToCloudConvert();
+            documentData = service.SendJob();
 
             do
             {

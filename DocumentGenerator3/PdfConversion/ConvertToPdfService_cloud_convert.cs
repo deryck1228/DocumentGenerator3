@@ -12,11 +12,11 @@ using System.Threading.Tasks;
 
 namespace DocumentGenerator3.PdfConversion
 {
-    public class ConvertToPdfService
+    public class ConvertToPdfService_cloud_convert : IConvertToPdfService
     {
         public DocumentData DocumentData { get; set; }
 
-        public DocumentData SendJobToCloudConvert()
+        public DocumentData SendJob()
         {
             var config = new ConfigurationBuilder()
                  .AddEnvironmentVariables()

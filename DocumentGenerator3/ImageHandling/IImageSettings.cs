@@ -14,8 +14,8 @@ namespace DocumentGenerator3.ImageHandling
         string image_extension { get; set; }
         string image_link { set; get; }
         byte[] image_bytes { get; set; }
-        int image_width { get; set; }
-        int image_height { get; set; }
+        int? image_width { get; set; }
+        int? image_height { get; set; }
         void DownloadImage();
     }
 }

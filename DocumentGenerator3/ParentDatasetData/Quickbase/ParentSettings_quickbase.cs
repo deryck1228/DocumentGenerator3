@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System.Collections.Generic;
 
 namespace DocumentGenerator3.ParentDatasetData
 {
@@ -37,5 +38,6 @@ namespace DocumentGenerator3.ParentDatasetData
         /// The merge field id used to determine equality when post to or getting from the parent dataset in Quickbase
         /// </summary>
         public string merge_field_id { get; set; }
+        public List<BulletedListContainer> fids_containing_lists { get; set; }
     }
 }

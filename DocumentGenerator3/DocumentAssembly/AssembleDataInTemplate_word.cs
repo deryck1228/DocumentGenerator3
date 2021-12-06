@@ -86,6 +86,13 @@ namespace DocumentGenerator3.DocumentAssembly
             memStream.Write(imageSettings.image_bytes, 0, imageSettings.image_bytes.Length);
             memStream.Seek(0, SeekOrigin.Begin);
 
+            if (imageSettings.image_width is null || imageSettings.image_height is null)
+            {
+                var imageSize = GetSize(imageSettings.image_bytes); 
+                imageSettings.image_width = imageSize.Width;
+                imageSettings.image_height = imageSize.Height;
+            }
+
             imagePart.FeedData(memStream);
 
             string imageSlug = $"~~{imageSettings.image_id}~~";
@@ -125,9 +132,9 @@ namespace DocumentGenerator3.DocumentAssembly
             }
         }
 
-        private static void AddImageToBody(WordprocessingDocument wordDoc, string relationshipId, string imageSlug, int imageWidth = 50, int imageHeight = 50)
+        private static void AddImageToBody(WordprocessingDocument wordDoc, string relationshipId, string imageSlug, int? imageWidth = 50, int? imageHeight = 50)
         {
-            Size size = new Size(imageWidth, imageHeight);
+            Size size = new Size((int)imageWidth, (int)imageHeight);
 
             Int64Value width = size.Width * 9525;
             Int64Value height = size.Height * 9525;
@@ -196,13 +203,30 @@ namespace DocumentGenerator3.DocumentAssembly
                          EditId = "50D07946"
                      });
 
-            Paragraph paragraphWithSlug = wordDoc.MainDocumentPart.Document.Body.Descendants().FirstOrDefault(r => r.InnerText == imageSlug) as Paragraph;
-            Run runWithSlug = paragraphWithSlug.Descendants().FirstOrDefault(r => r.InnerText == imageSlug) as Run;
-            runWithSlug.Remove();
+            //Paragraph paragraphWithSlug = wordDoc.MainDocumentPart.Document.Body.Descendants<Paragraph>().FirstOrDefault(r => r.InnerText == imageSlug) as Paragraph;
+            //Run runWithSlug = paragraphWithSlug.Descendants().FirstOrDefault(r => r.InnerText == imageSlug) as Run;
 
-            paragraphWithSlug.Parent.AppendChild(new Paragraph(new Run(element)));
+            Run runWithSlug = wordDoc.MainDocumentPart.Document.Body.Descendants<Run>().FirstOrDefault(r => r.InnerText == imageSlug);
+            //Paragraph paragraphWithSlug = (Paragraph)runWithSlug.Parent.First();
+            if (runWithSlug is not null)
+            {
+
+                runWithSlug.Parent.AppendChild(new Run(element));
+
+                runWithSlug.Remove(); 
+            }
 
             wordDoc.MainDocumentPart.Document.Save();
+        }
+
+        private Size GetSize(byte[] bytes)
+        {
+            using (var stream = new MemoryStream(bytes))
+            {
+                var image = Image.FromStream(stream);
+
+                return image.Size;
+            }
         }
 
         private string AddGraph(WordprocessingDocument wpd, IImageSettings imageSettings, byte[] imageData)
@@ -240,7 +264,7 @@ namespace DocumentGenerator3.DocumentAssembly
 
         private static void PreconfigureTable(KeyValuePair<string, string> m, Table t, string tableCaption)
         {
-            if (m.Key == tableCaption)
+            if (m.Key == tableCaption && m.Value != "\n")
             {
                 CreateArray tableData = new CreateArray();
                 var tableArray = tableData.LoadCsv(m.Value);

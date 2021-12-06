@@ -20,8 +20,8 @@ namespace DocumentGenerator3.ParentDatasetData
             var quickBaseValues = new List<KeyValuePair<string, string>>();
 
             WebRequest request = WebRequest.Create("https://api.quickbase.com/v1/records/query");
-            //request.ContentType = "text/plain"; // or whatever - application/json, etc, etc
-            request.Method = "POST"; // even though fetching data, POST because request is sending a body
+
+            request.Method = "POST";
             request.ContentType = "application/json";
             request.Headers.Add("QB-Realm-Hostname", Settings.realm);
             request.Headers.Add("User-Agent", "Azure_Serverless_Functions");
@@ -59,13 +59,17 @@ namespace DocumentGenerator3.ParentDatasetData
                     foreach (var f in l.Properties())
                     {
                         quickBaseValues.Add(new KeyValuePair<string, string>(f.Name.ToString(), f.Value["value"].ToString()));
+                        //Find 
                     }
                 }
             }
 
-            //fileData.parentData = quickBaseValues;
-
             return quickBaseValues;
+        }
+
+        private void TransformStringsToBulletedLists(string jsonToTransform)
+        {
+
         }
     }
 }

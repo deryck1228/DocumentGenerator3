@@ -26,7 +26,7 @@ namespace DocumentGenerator3.TemplateData
         /// </summary>
         public string apptoken { get; set; }
         /// <summary>
-        /// The usertoken used to access teh data for the template
+        /// The usertoken used to access the data for the template
         /// </summary>
         public string usertoken { get; set; }
         /// <summary>
@@ -34,7 +34,7 @@ namespace DocumentGenerator3.TemplateData
         /// </summary>
         public string key_id { get; set; }
         /// <summary>
-        /// The id of the field in which teh template document is stored
+        /// The id of the field in which the template document is stored
         /// </summary>
         public string document_fid { get; set; }
         /// <summary>

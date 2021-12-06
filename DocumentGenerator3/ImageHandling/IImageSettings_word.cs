@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace DocumentGenerator3.ImageHandling
 {
-    public class GetImageLocationService_quickbase
+    public interface IImageSettings_word : IImageSettings
     {
+        int image_width { get; set; }
+        int image_height { get; set; }
     }
 }

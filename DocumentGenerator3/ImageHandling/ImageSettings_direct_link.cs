@@ -17,11 +17,11 @@ namespace DocumentGenerator3.ImageHandling
         /// <summary>
         /// The width of the image in pixels
         /// </summary>
-        public int image_width { get; set; }
+        public int? image_width { get; set; }
         /// <summary>
         /// The height of the image in pixels
         /// </summary>
-        public int image_height { get; set; }
+        public int? image_height { get; set; }
 
         public void DownloadImage()
         {

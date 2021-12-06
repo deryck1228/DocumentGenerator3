@@ -68,11 +68,32 @@ namespace DocumentGenerator3.ChildDatasetData
             var columnHeaders = Metadata.childDataset.column_headers.Split(',').ToList();
             var fieldOrder = Metadata.childDataset.field_order.Split(',').Select(Int32.Parse).ToList();
 
+            if (columnHeaders.Count != 1 && columnHeaders[0] != "")
+            {
+                csv = ConvertToCsvString(items, columnHeaders, fieldOrder); 
+            }
+
+            var metadata = jsonResponse.GetValue("metadata");
+            Metadata.recordCount = Convert.ToInt32(metadata["totalRecords"].ToString());
+            Metadata.skip = Metadata.skip + Metadata.chunkSize;
+            if (Metadata.chunkSize == 0)
+            {
+                Metadata.chunkSize = Convert.ToInt32(metadata["numRecords"].ToString());
+            }
+
+            Metadata.thisCSV = csv;
+
+            return Metadata;
+        }
+
+        private string ConvertToCsvString(JToken items, List<string> columnHeaders, List<int> fieldOrder)
+        {
+            string csv;
             if (items != null && items.Count() > 0)
             {
                 List<string> csvRows = new List<string>();
                 var timesThrough = 1;
-                if (Metadata.skip != 0)
+                if (Metadata.skip != 0 || columnHeaders[0] == "")
                 {
                     timesThrough++;
                 }
@@ -126,14 +147,14 @@ namespace DocumentGenerator3.ChildDatasetData
                 List<string> eachHeader = new List<string>();
                 foreach (var i in fieldOrder)
                 {
-                    if (timesThrough == 1)
+                    if (timesThrough == 1 && columnHeaders[0] != "")
                     {
                         string columnName = columnHeaders[iterator];
                         eachHeader.Add(columnName);
                         iterator++;
                     }
                 }
-                if (timesThrough == 1)
+                if (timesThrough == 1 && columnHeaders[0] != "")
                 {
                     string Headers = String.Join(",", eachHeader.ToArray());
 
@@ -144,17 +165,7 @@ namespace DocumentGenerator3.ChildDatasetData
                 csv = string.Join("\n", csvRows.ToArray());
             }
 
-            var metadata = jsonResponse.GetValue("metadata");
-            Metadata.recordCount = Convert.ToInt32(metadata["totalRecords"].ToString());
-            Metadata.skip = Metadata.skip + Metadata.chunkSize;
-            if (Metadata.chunkSize == 0)
-            {
-                Metadata.chunkSize = Convert.ToInt32(metadata["numRecords"].ToString());
-            }
-
-            Metadata.thisCSV = csv;
-
-            return Metadata;
+            return csv;
         }
     }
 }

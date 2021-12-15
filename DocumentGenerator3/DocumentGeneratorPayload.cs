@@ -1,4 +1,5 @@
 ﻿using DocumentGenerator3.AdditionalDocumentsToBind;
+using DocumentGenerator3.BulletedListData;
 using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentDelivery;
 using DocumentGenerator3.ImageHandling;
@@ -45,5 +46,9 @@ namespace DocumentGenerator3
         /// A list of image locations from which images can be downloaded and inserted into the document
         /// </summary>
         public List<ImageLocation> image_locations { get; set; } = new List<ImageLocation>();
+        /// <summary>
+        /// A list of bulleted list locations from which bulleted lists can be constructed and inserted into the document
+        /// </summary>
+        public List<BulletedListLocation> bulleted_lists { get; set; } = new();
     }
 }

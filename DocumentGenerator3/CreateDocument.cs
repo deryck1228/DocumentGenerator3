@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using DocumentGenerator3.BulletedListData;
 using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentAssembly;
 using DocumentGenerator3.DocumentDelivery;
@@ -41,6 +42,7 @@ namespace DocumentGenerator3
             var parallelActivities = new List<Task>();
             var listOfChildTasks = new List<Task>();
             var listOfImageDownloads = new List<Task>();
+            var listOfBulletedListConfigurations = new List<Task>();
 
             Task<byte[]> templateTask = context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
             parallelActivities.Add(templateTask);
@@ -62,10 +64,18 @@ namespace DocumentGenerator3
                 listOfImageDownloads.Add(imageTask);
             }
 
+            foreach( var listLocation in payload.bulleted_lists)
+            {
+                Task<KeyValuePair<string, BulletedListConfiguration>> bulletedListTask = context.CallActivityAsync<KeyValuePair<string, BulletedListConfiguration>>($"CreateDocument_GetBulletedListData_{listLocation.settings.service}", listLocation);
+                parallelActivities.Add(bulletedListTask);
+                listOfBulletedListConfigurations.Add(bulletedListTask);
+            }
+
             await Task.WhenAll(parallelActivities);
 
             documentData.fileContents = templateTask.Result;
             documentData.parentData = parentDataTask.Result;
+
             foreach (Task<List<KeyValuePair<string, string>>> childTask in listOfChildTasks)
             {
                 documentData.listOfTableCSVs.AddRange(childTask.Result); 
@@ -74,6 +84,11 @@ namespace DocumentGenerator3
             foreach (Task<ImageLocation> task in listOfImageDownloads)
             {
                 documentData.originalPayload.image_locations.Add(task.Result);
+            }
+
+            foreach(Task<KeyValuePair<string,BulletedListConfiguration>> bulletedListTask in listOfBulletedListConfigurations)
+            {
+                documentData.bulletedListCollection.Add(bulletedListTask.Result);
             }
 
             documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_AddDataToTemplate_{payload.template_location.settings.template_type}", documentData);
@@ -134,6 +149,16 @@ namespace DocumentGenerator3
             quickbaseListOfTableData.Add(new KeyValuePair<string, string>(tableTitle, csv));
 
             return quickbaseListOfTableData;
+        }
+
+        [FunctionName("CreateDocument_GetBulletedListData_quickbase")]
+        public static KeyValuePair<string, BulletedListConfiguration> GetBulletedLIstDataFromQuickbase([ActivityTrigger] BulletedListLocation bulletedListLocation, ILogger log)
+        {
+            log.LogInformation("Fetching bulleted list data from Quickbase");
+
+            var configuration = bulletedListLocation.settings.GetBulletedListConfiguration();
+
+            return configuration;
         }
 
         [FunctionName("CreateDocument_AddDataToTemplate_word")]

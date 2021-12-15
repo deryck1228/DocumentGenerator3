@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using DocumentGenerator3.BulletedListData;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 
 namespace DocumentGenerator3.ParentDatasetData

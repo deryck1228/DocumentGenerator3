@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentGenerator3", "DocumentGenerator3\DocumentGenerator3.csproj", "{E6723A80-F6A3-48CA-9515-78E61F2322C4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DocumentGenerator3", "DocumentGenerator3\DocumentGenerator3.csproj", "{E6723A80-F6A3-48CA-9515-78E61F2322C4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentGenerator3.Tests", "DocumentGenerator3.Tests\DocumentGenerator3.Tests.csproj", "{417671FA-A3AD-49CB-B438-506790D5B8AE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DocumentGenerator3.Tests", "DocumentGenerator3.Tests\DocumentGenerator3.Tests.csproj", "{417671FA-A3AD-49CB-B438-506790D5B8AE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DocumentGeneratorUI", "DocumentGeneratorUI\DocumentGeneratorUI.csproj", "{C5813AB5-45F7-44A8-9DEE-DE2440A88166}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{417671FA-A3AD-49CB-B438-506790D5B8AE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{417671FA-A3AD-49CB-B438-506790D5B8AE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{417671FA-A3AD-49CB-B438-506790D5B8AE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

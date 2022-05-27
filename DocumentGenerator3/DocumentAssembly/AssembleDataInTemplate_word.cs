@@ -1,18 +1,18 @@
-﻿using Microsoft.Extensions.Configuration;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using System.IO;
 using DocumentGenerator3.ImageHandling;
-using System.Runtime.Serialization.Formatters.Binary;
 using DocumentFormat.OpenXml;
 using System.Drawing;
 using A = DocumentFormat.OpenXml.Drawing;
 using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using DocumentGenerator3.BulletedListData;
+using DocumentGenerator3.ChildDatasetData;
+using Newtonsoft.Json.Linq;
 
 namespace DocumentGenerator3.DocumentAssembly
 {
@@ -31,7 +31,7 @@ namespace DocumentGenerator3.DocumentAssembly
                     wdDoc.MainDocumentPart.GetPartsOfType<DocumentSettingsPart>().First();
 
                 UpdateFieldsOnOpen updateFields = new UpdateFieldsOnOpen();
-                updateFields.Val = new DocumentFormat.OpenXml.OnOffValue(true);
+                updateFields.Val = new OnOffValue(true);
 
                 settingsPart.Settings.PrependChild<UpdateFieldsOnOpen>(updateFields);
                 settingsPart.Settings.Save();
@@ -43,7 +43,7 @@ namespace DocumentGenerator3.DocumentAssembly
                     docText = sr.ReadToEnd();
                 }
 
-                if(fileData.bulletedListCollection.Count > 0)
+                if (fileData.bulletedListCollection.Count > 0)
                 {
                     AddBulletedListsToDocument(wdDoc);
                 }
@@ -58,11 +58,31 @@ namespace DocumentGenerator3.DocumentAssembly
 
                 PopulateAllRuns(wdDoc);
 
+                wdDoc.MainDocumentPart.Document.Save();
+
+
+                foreach(var child in fileData.originalPayload.child_datasets)
+                {
+                    if(child.settings is ChildSettings_quickbase)
+                    {
+                        ChildSettings_quickbase settings = (ChildSettings_quickbase)child.settings;
+                        var groupBy = settings.groupBy;
+                        if(groupBy != "")
+                        {
+                            AddGroupingRowsToChildTables(wdDoc, settings);
+                        }
+                    }
+                }
+
+                AddFormattingToChildTables(wdDoc);
+
+                wdDoc.MainDocumentPart.Document.Save();
+
                 foreach (var img in fileData.originalPayload.image_locations)
                 {
                     if (img.settings.image_bytes != null)
                     {
-                        InsertPicture(wdDoc, img.settings); 
+                        InsertPicture(wdDoc, img.settings);
                     }
                 }
 
@@ -80,14 +100,160 @@ namespace DocumentGenerator3.DocumentAssembly
             return fileData.fileContents;
         }
 
+        private void AddGroupingRowsToChildTables(WordprocessingDocument wdDoc, ChildSettings_quickbase settings)
+        {
+            string settingsId = $"{settings.table_dbid}.{settings.id}";
+
+            foreach (Table tbl in wdDoc.MainDocumentPart.Document.Body.Elements<Table>())
+            {
+                TableProperties tableProperties = tbl.Elements<TableProperties>().FirstOrDefault();
+                TableCaption tableCaption = tableProperties.Elements<TableCaption>().FirstOrDefault();
+
+                string caption = "";
+
+                if (tableCaption is not null)
+                {
+                    caption = tableProperties.Elements<TableCaption>().FirstOrDefault().Val; 
+                }
+
+                if (tableProperties is not null && caption.Contains(settingsId))
+                {
+                    int groupingIndex = 1;
+                    foreach (var line in fileData.listOfTableCSVs)
+                    {
+                        if (line.Key.Contains(settingsId))
+                        {
+                            string previousEntry = "";
+                            int offset = 0;
+
+                            foreach (var grouping in line.Value.GroupByData)
+                            {
+
+                                if (previousEntry != grouping)
+                                {
+                                    var allRows = tbl.Elements<TableRow>().ToList();
+
+                                    TableRow currentRow = allRows[groupingIndex + offset];
+                                    TableCellProperties cellOneProperties = new TableCellProperties();
+                                    cellOneProperties.Append(new HorizontalMerge()
+                                    {
+                                        Val = MergedCellValues.Restart
+                                    });
+                                    cellOneProperties.Append(new TableCellVerticalAlignment() { Val = TableVerticalAlignmentValues.Center });
+                                    cellOneProperties.Append(new Shading() { Color = "auto", Fill = "#8A8A8D" });
+
+                                    //var cellFontColor = new DocumentFormat.OpenXml.Office2013.Word.Color() { Val = "white" };
+
+                                    ParagraphProperties paragraphProperties = new ParagraphProperties(new Justification() { Val = JustificationValues.Center });
+
+                                    TableRow newRow = new TableRow(new TableCell(cellOneProperties, new Paragraph(paragraphProperties, new Run(new RunProperties(new Text(grouping))))));
+
+                                    for(int i = 1; i < line.Value.CountOfColumns; i++)
+                                    {
+                                        TableCellProperties additionalCellsProperties = new TableCellProperties();
+                                        additionalCellsProperties.Append(new HorizontalMerge()
+                                        {
+                                            Val = MergedCellValues.Continue
+                                        });
+                                        additionalCellsProperties.Append(new TableCellVerticalAlignment() { Val = TableVerticalAlignmentValues.Center });
+                                        ParagraphProperties cellParagraphProperties = new ParagraphProperties(new Justification() { Val = JustificationValues.Center });
+                                        var newCell = new TableCell(additionalCellsProperties, new Paragraph(cellParagraphProperties, new Run(new Text(grouping))));
+                                        newRow.AppendChild(newCell);
+                                    }
+
+                                    currentRow.InsertBeforeSelf(newRow);
+                                    previousEntry = grouping;
+                                    offset++;
+                                }
+
+                                groupingIndex ++;
+                            }
+                        }
+
+                    }
+                }
+            }
+        }
+
+        private void AddFormattingToChildTables(WordprocessingDocument wdDoc)
+        {
+            foreach (Table tbl in wdDoc.MainDocumentPart.Document.Body.Elements<Table>())
+            {
+                var thisTableProperties = tbl.Descendants<TableProperties>().FirstOrDefault();
+                var thisTableCaption = thisTableProperties.Descendants<TableCaption>().FirstOrDefault();
+                string thisTableCaptionVal = "";
+                if (thisTableCaption is not null)
+                {
+                    thisTableCaptionVal = thisTableCaption.Val;
+                }
+
+                foreach (TableRow row in tbl.Descendants<TableRow>())
+                {
+                    foreach (TableCell cell in row.Descendants<TableCell>())
+                    {
+                        foreach (Paragraph paragraph in cell.Descendants<Paragraph>())
+                        {
+                            foreach (Run run in paragraph.Elements<Run>())
+                            {
+                                var thisTableChildDataset = fileData.originalPayload.child_datasets.Where(d => thisTableCaptionVal.Contains(d.settings.id)).FirstOrDefault();
+                                if (thisTableChildDataset is not null)
+                                {
+                                    ChildSettings_quickbase thisTableSetting = (ChildSettings_quickbase)thisTableChildDataset.settings;
+
+                                    RunProperties newRunProperties = new RunProperties(
+                                        new RunFonts()
+                                        {
+                                            Ascii = thisTableSetting.table_font_family
+                                        },
+                                        new FontSize()
+                                        {
+                                            Val = (Convert.ToInt32(thisTableSetting.table_font_size) * 2).ToString()
+                                        });
+
+                                    var currentRunPropertiesList = run.Elements<RunProperties>().ToList();
+                                    foreach (RunProperties currentRunProperties in currentRunPropertiesList)
+                                    {
+                                        if (currentRunProperties is not null)
+                                        {
+                                            var currentRunFont = currentRunProperties.Descendants<RunFonts>().FirstOrDefault();
+                                            var currentFontSize = currentRunProperties.Descendants<FontSize>().FirstOrDefault();
+
+                                            if (currentRunFont is not null)
+                                            {
+                                                currentRunFont = newRunProperties.RunFonts;
+                                            }
+                                            else
+                                            {
+                                                currentRunProperties.RunFonts = new RunFonts() { Ascii = newRunProperties.RunFonts.Ascii };
+                                            }
+
+                                            if (currentFontSize is not null)
+                                            {
+                                                currentFontSize = newRunProperties.FontSize;
+                                            }
+                                            else
+                                            {
+                                                currentRunProperties.FontSize = new FontSize() { Val = newRunProperties.FontSize.Val };
+                                            }
+
+                                            continue;
+                                        }
+                                    }
+                                    run.PrependChild<RunProperties>(newRunProperties);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         private void InsertPicture(WordprocessingDocument wordprocessingDocument, IImageSettings imageSettings)
         {
             MainDocumentPart mainPart = wordprocessingDocument.MainDocumentPart;
 
             //TODO update AddImagePart to use dynamic string of image type
             ImagePart imagePart = mainPart.AddImagePart(ImagePartType.Jpeg);
-
-            //ImagePart ip = wordprocessingDocument.MainDocumentPart.AddImagePart(ImagePartType.Jpeg);
 
             MemoryStream memStream = new MemoryStream();
 
@@ -110,6 +276,7 @@ namespace DocumentGenerator3.DocumentAssembly
 
         private static void PopulateAllRuns(WordprocessingDocument wdDoc)
         {
+            //TODO: Check if this is only necessary in Runs inside a table.
             foreach (Run r in wdDoc.MainDocumentPart.Document.Descendants<Run>())
             {
                 if (r.Elements<Text>().Count() > 0)
@@ -133,6 +300,7 @@ namespace DocumentGenerator3.DocumentAssembly
                         first = false;
 
                         Text txt = new Text();
+                        txt.Space = SpaceProcessingModeValues.Preserve;
                         txt.Text = line;
                         r.Append(txt);
                     }       
@@ -195,7 +363,7 @@ namespace DocumentGenerator3.DocumentAssembly
                                      new PIC.ShapeProperties(
                                          new A.Transform2D(
                                              new A.Offset() { X = 0L, Y = 0L },
-                                             new A.Extents() { Cx = 990000L, Cy = 792000L }),
+                                             new A.Extents() { Cx = width, Cy = height }),
                                          new A.PresetGeometry(
                                              new A.AdjustValueList()
                                          )
@@ -211,11 +379,8 @@ namespace DocumentGenerator3.DocumentAssembly
                          EditId = "50D07946"
                      });
 
-            //Paragraph paragraphWithSlug = wordDoc.MainDocumentPart.Document.Body.Descendants<Paragraph>().FirstOrDefault(r => r.InnerText == imageSlug) as Paragraph;
-            //Run runWithSlug = paragraphWithSlug.Descendants().FirstOrDefault(r => r.InnerText == imageSlug) as Run;
-
             Run runWithSlug = wordDoc.MainDocumentPart.Document.Body.Descendants<Run>().FirstOrDefault(r => r.InnerText == imageSlug);
-            //Paragraph paragraphWithSlug = (Paragraph)runWithSlug.Parent.First();
+
             if (runWithSlug is not null)
             {
 
@@ -270,18 +435,19 @@ namespace DocumentGenerator3.DocumentAssembly
             }
         }
 
-        private static void PreconfigureTable(KeyValuePair<string, string> m, Table t, string tableCaption)
+        private static void PreconfigureTable(KeyValuePair<string, CsvWithMetadata> m, Table t, string tableCaption)
         {
-            if (m.Key == tableCaption && m.Value != "\n")
+            if (m.Key == tableCaption && m.Value.Csv != "\n")
             {
                 CreateArray tableData = new CreateArray();
-                var tableArray = tableData.LoadCsv(m.Value);
+                var tableArray = tableData.LoadCsv(m.Value.Csv);
 
                 TableGrid tg = t.GetFirstChild<TableGrid>();
 
                 RunProperties runProperties = ResizeTableAsNecessary(t, tableData, tg);
                 var lastRowIndex = tableArray.GetUpperBound(0);
                 AddCsvDataToTable(t, tableArray, lastRowIndex, runProperties);
+                //AddFormattingToTable(t, runProperties);
             }
         }
 
@@ -305,20 +471,42 @@ namespace DocumentGenerator3.DocumentAssembly
             if (originalNumberOfRows < tableData.NumberOfRows)
             {
                 int i = 1;
+
+                TableRow header = (TableRow)t.GetFirstChild<TableRow>();
+                foreach(Run run in header.Elements<Run>())
+                    {
+                    run.PrependChild<RunProperties>(runProperties);
+                    run.RunProperties = runProperties;
+                }
+
                 while (originalNumberOfRows + i <= tableData.NumberOfRows)
                 {
                     TableRow newRow = (TableRow)lastRow.CloneNode(true);
                     
                     var thisNewRow = t.Descendants<TableRow>().First().InsertAfterSelf(newRow);
 
-                    foreach(Run run in thisNewRow.Elements<Run>())
+                    foreach (TableCell cell in thisNewRow.Descendants<TableCell>())
                     {
-                        run.PrependChild<RunProperties>(runProperties);
-                        run.RunProperties = runProperties;
+                        var thisCell = cell.Descendants<Paragraph>().FirstOrDefault();
+
+                        RunProperties clonedProperties = (RunProperties)runProperties.CloneNode(true);
+
+                        thisCell.AppendChild(new Run(new RunProperties(clonedProperties)));
+                        //thisCell.Append(new Run(new RunProperties(runProperties)));
+                        //foreach (Paragraph para in cell.Descendants<Paragraph>())
+                        //{
+                        //    foreach (Run run in thisNewRow.Descendants<Run>())
+                        //    {
+                        //        run.PrependChild<RunProperties>(runProperties);
+                        //        run.RunProperties = runProperties;
+                        //    }  
+                        //}
                     }
 
                     i++;
                 }
+
+                //lastRow.Remove();
             }
 
             return runProperties;
@@ -344,6 +532,10 @@ namespace DocumentGenerator3.DocumentAssembly
                         runProperties.AppendChild(new RunFonts() { Ascii = fontName });
                     }
                 }
+                //else
+                //{
+                //    runProperties.AppendChild(new RunFonts() { Ascii = "Times New Roman" });
+                //}
 
                 var runFontSize = rowCopyProperties.GetFirstChild<ParagraphMarkRunProperties>().GetFirstChild<FontSize>();
 
@@ -355,7 +547,11 @@ namespace DocumentGenerator3.DocumentAssembly
                     {
                         runProperties.AppendChild(new FontSize() { Val = fontSize });
                     }
-                } 
+                }
+                //else
+                //{
+                //    runProperties.AppendChild(new FontSize() { Val = "20" });
+                //}
             }
 
             return runProperties;
@@ -381,25 +577,28 @@ namespace DocumentGenerator3.DocumentAssembly
 
                     if (parag.ChildElements.Count <= 1)
                     {
-                        parag.Append(new Run());
+                        var currentRun = parag.Descendants<Run>().FirstOrDefault();
+                        if (currentRun is null)
+                        {
+                            parag.Append(new Run()); 
+                        }
                     }
 
                     Run run = parag.Elements<Run>().First();
-                    run.Append(new RunProperties(new RunFonts()));
+                    //run.Append(new RunProperties(new RunFonts() { Ascii = ""}, new FontSize() { Val = "20"}));
                     //run.RunProperties = runProperties;
 
-                    if (run.ChildElements.Count == 1)
-                    {
-                        run.Append(new Text());
-                    }
+
+                    run.Append(new Text());
+                    
                     Text text = run.Elements<Text>().First();
 
 
-                    text.Text = cellValue; //.Replace("*|*","\n"); //Replace unusual character sequence with newline to reintroduce newlines when filling table cell
+                    text.Text = cellValue.Replace("*%*", ","); //.Replace("*|*","\n"); //Replace unusual character sequence with newline to reintroduce newlines when filling table cell; Replace unusual character sequence with comma to reintroduce commas when filling table cell
                 }
             }
 
-            AddFormattingToTable(t, runProperties);
+            //AddFormattingToTable(t, runProperties);
         }
 
         private static void AddFormattingToTable(Table t, RunProperties runProperties)
@@ -418,17 +617,43 @@ namespace DocumentGenerator3.DocumentAssembly
                                 {
                                     if (run.RunProperties.RunFonts.Ascii is not null)
                                     {
-                                        run.RunProperties.RunFonts.Ascii = runProperties.RunFonts.Ascii; 
+                                        if (run.RunProperties.RunFonts.Ascii is not null)
+                                        {
+                                            bool hasFontFamily = run.RunProperties.RunFonts.Ascii != "";
+                                            run.RunProperties.RunFonts.Ascii = hasFontFamily ? runProperties.RunFonts.Ascii : "Times New Roman";
+                                        }
                                     }
+                                }
+                                else
+                                {
+                                    run.RunProperties.AppendChild<RunFonts>(runProperties.RunFonts);
+                                }
+
+                                if (run.RunProperties.FontSize is not null)
+                                {
+                                    if (run.RunProperties.FontSize.Val is not null)
+                                    {
+                                        bool hasFontSize = run.RunProperties.FontSize.Val != "";
+                                        run.RunProperties.FontSize.Val = hasFontSize ? runProperties.FontSize.Val : "20";
+                                    }
+                                }
+                                else
+                                {
+                                    //run.RunProperties.AppendChild<FontSize>(runProperties.FontSize);
                                 }
 
                                 if (run.RunProperties.RunStyle is not null)
                                 {
                                     if (run.RunProperties.RunStyle is not null)
                                     {
-                                        run.RunProperties.RunStyle.Val = runProperties.RunStyle.Val; 
+                                        run.RunProperties.RunStyle.Val = runProperties.RunStyle.Val;
                                     }
                                 }
+                            }
+                            else
+                            {
+                                run.PrependChild<RunProperties>(runProperties);
+                                run.RunProperties = runProperties;
                             }
                         }
                     }
@@ -446,16 +671,14 @@ namespace DocumentGenerator3.DocumentAssembly
                     elementValue = r.Value.ToString();
                 }
 
-                if (elementValue != "")
-                {
-                    string elementSlug = "{{" + r.Key + "}}";
+                string elementSlug = "{{" + r.Key + "}}";
 
-                    FindAndReplaceTextInHeader(wdDoc, elementValue, elementSlug);
+                FindAndReplaceTextInHeader(wdDoc, elementValue, elementSlug);
 
-                    FindAndReplaceTextInFooter(wdDoc, elementValue, elementSlug);
+                FindAndReplaceTextInFooter(wdDoc, elementValue, elementSlug);
 
-                    FindAndReplaceTextInMainBody(wdDoc, elementValue, elementSlug);
-                }
+                FindAndReplaceTextInMainBody(wdDoc, elementValue, elementSlug);
+                
             }
 
             wdDoc.MainDocumentPart.Document.Save();
@@ -463,15 +686,18 @@ namespace DocumentGenerator3.DocumentAssembly
 
         private static void FindAndReplaceTextInMainBody(WordprocessingDocument wdDoc, string elementValue, string elementSlug)
         {
-            Run runWithSlug = wdDoc.MainDocumentPart.Document.Descendants<Run>().FirstOrDefault(r => r.InnerText.Contains(elementSlug));
+            var runWithSlugs = wdDoc.MainDocumentPart.Document.Descendants<Run>().Where(r => r.InnerText.Contains(elementSlug));
 
-            if (runWithSlug != null)
+            foreach (var runWithSlug in runWithSlugs)
             {
-                var runText = runWithSlug.Descendants<Text>().FirstOrDefault();
-                if (runText != null)
+                if (runWithSlug != null)
                 {
-                    runText.Text = runText.Text.Replace(elementSlug, elementValue);
-                }
+                    var runText = runWithSlug.Descendants<Text>().FirstOrDefault();
+                    if (runText != null)
+                    {
+                        runText.Text = runText.Text.Replace(elementSlug, elementValue);
+                    }
+                } 
             }
         }
 
@@ -491,6 +717,20 @@ namespace DocumentGenerator3.DocumentAssembly
             }
         }
 
+        private static void EnsureSpacesArePreservedInTextElements(WordprocessingDocument wdDoc)
+        {
+            var allRuns = wdDoc.MainDocumentPart.Document.Descendants<Run>();
+
+            foreach(Run run in allRuns)
+            {
+                var runText = run.Descendants<Text>().FirstOrDefault();
+                if (runText != null)
+                {
+                    runText.Space = SpaceProcessingModeValues.Preserve;
+                }
+            }
+        }
+
         private static void FindAndReplaceTextInHeader(WordprocessingDocument wdDoc, string elementValue, string elementSlug)
         {
             foreach (var header in wdDoc.MainDocumentPart.HeaderParts)
@@ -502,6 +742,7 @@ namespace DocumentGenerator3.DocumentAssembly
                     if (runText != null)
                     {
                         runText.Text = runText.Text.Replace(elementSlug, elementValue);
+                        runText.Space = SpaceProcessingModeValues.Preserve;
                     }
                 }
             }
@@ -530,19 +771,6 @@ namespace DocumentGenerator3.DocumentAssembly
                 Numbering element =
                   new Numbering(
                     new AbstractNum(
-                      //new Level(
-                      //  new NumberingFormat() { Val = NumberFormatValues.Custom },
-                      //  new LevelText() { Val = "·" }
-                      //)
-                      //{ LevelIndex = 0 },
-                      //new Level(
-                      //  new NumberingFormat() { Val = NumberFormatValues.Custom },
-                      //  new LevelText() { Val = "·" },
-                      //  new ParagraphProperties(
-                      //      new Indentation() { Left = "1440"}
-                      //      )
-                      //)
-                      //{ LevelIndex = 1 }
                     )
                     { AbstractNumberId = 1 },
                     new NumberingInstance(
@@ -554,28 +782,30 @@ namespace DocumentGenerator3.DocumentAssembly
 
                 List<Paragraph> paragraphs = new List<Paragraph>();
 
-                CreateBulletedListParagraph(abstractNum, paragraphs, bulletedList.Value.Lines, numberId);
+                CreateBulletedListParagraph(abstractNum, paragraphs, bulletedList.Value.Lines, numberId, bulletedList.Value.font_family, bulletedList.Value.font_size);
 
                 var elementSlug = bulletedList.Key;
-                Run runWithSlug = wdDoc.MainDocumentPart.Document.Body.Descendants<Run>().FirstOrDefault(r => r.InnerText == elementSlug);
+                Run runWithSlug = wdDoc.MainDocumentPart.Document.Body.Descendants<Run>().FirstOrDefault(r => r.InnerText.Contains(elementSlug));
 
                 if (runWithSlug is not null)
                 {
+                    var elementToInsertAfter = runWithSlug.Parent;
                     foreach (var para in paragraphs)
                     {
-                        runWithSlug.Parent.Parent.AppendChild<Paragraph>(para); 
+                        elementToInsertAfter.InsertAfterSelf<Paragraph>(para);
+                        elementToInsertAfter = para;
                     }
                     runWithSlug.Remove();
                 }
 
                 element.Save(numberingPart);
-
-                //wdDoc.MainDocumentPart.Document.Save();
             }
         }
 
-        private void CreateBulletedListParagraph(AbstractNum abstractNum, List<Paragraph> paragraphs, List<BulletedListLine> lines, int numberingID, int indentLevel = 0)
+        private void CreateBulletedListParagraph(AbstractNum abstractNum, List<Paragraph> paragraphs, List<BulletedListLine> lines, int numberingID, string fontFamily, string fontSize, int indentLevel = 0)
         {
+            int doubleFontSize = Convert.ToInt32(fontSize) * 2;
+            
             var indentDistance = 720 * (indentLevel + 1);
             Level thisLevel = new Level(
                         new NumberingFormat() { Val = NumberFormatValues.Custom },
@@ -596,13 +826,16 @@ namespace DocumentGenerator3.DocumentAssembly
                       new NumberingId() { Val = numberingID }),
                     new ParagraphStyleId() { Val = "ListParagraph"}),
                   new Run(
-                    new RunProperties(),
+                    new RunProperties(
+                        new RunFonts() { Ascii = fontFamily },
+                        new FontSize() { Val = doubleFontSize.ToString()}
+                        ),
                     new Text(line.symbol + " " + line.text) { Space = SpaceProcessingModeValues.Preserve }));
 
                 paragraphs.Add(thisLineAsParagraph);
                 if(line.Lines != null)
                 {
-                    CreateBulletedListParagraph(abstractNum, paragraphs, line.Lines, numberingID, indentLevel + 1);
+                    CreateBulletedListParagraph(abstractNum, paragraphs, line.Lines, numberingID, fontFamily, fontSize, indentLevel + 1);
                 }
             }
         }

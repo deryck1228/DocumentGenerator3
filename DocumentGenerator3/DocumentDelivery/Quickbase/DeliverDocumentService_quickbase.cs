@@ -18,6 +18,15 @@ namespace DocumentGenerator3.DocumentDelivery
 
             var encodedDocument = Convert.ToBase64String(DocumentData.fileContents);
 
+            if (QBSettings.rid == "")
+            {
+                string postedDocumentResponse = SendFileAttachmentUsingXmlApi("API_AddRecord"); 
+            }
+            else
+            {
+                string postedDocumentResponse = SendFileAttachmentUsingXmlApi("API_EditRecord");
+            }
+
             WebRequest request = WebRequest.Create("https://api.quickbase.com/v1/records");
 
             request.Method = "POST";
@@ -28,7 +37,7 @@ namespace DocumentGenerator3.DocumentDelivery
 
             var records = new List<string>();
 
-            records.Add("\"" + QBSettings.document_field_id + "\":{\"value\":{\"fileName\":\"" + DocumentData.originalPayload.document_name + DocumentData.originalPayload.document_type + "\",\"data\":\"" + encodedDocument + "\"}}");
+            //records.Add("\"" + QBSettings.document_field_id + "\":{\"value\":{\"fileName\":\"" + DocumentData.originalPayload.document_name + DocumentData.originalPayload.document_type + "\",\"data\":\"" + encodedDocument + "\"}}");
 
             if (QBSettings.document_field_data != "")
             {
@@ -58,6 +67,8 @@ namespace DocumentGenerator3.DocumentDelivery
             dataStream.Write(byteArray, 0, byteArray.Length);
             dataStream.Close();
 
+            //Console.WriteLine(encodedDocument);
+
             WebResponse response = request.GetResponse();
 
             using (dataStream = response.GetResponseStream())
@@ -69,5 +80,62 @@ namespace DocumentGenerator3.DocumentDelivery
 
             return DocumentData;
         }
+
+        private string SendFileAttachmentUsingXmlApi(string QBAction)
+        {
+            var QBSettings = (DeliverySettings_quickbase)DocumentData.originalPayload.delivery_method.settings;
+            var encodedDocument = Convert.ToBase64String(DocumentData.fileContents);
+            string resultsData = "";
+
+            WebRequest request = WebRequest.Create($"https://{QBSettings.realm}/db/{QBSettings.table_dbid}?usertoken={QBSettings.usertoken}");
+
+            request.Method = "POST";
+            request.ContentType = "application/xml";
+            request.Headers.Add("QUICKBASE-ACTION", QBAction);
+
+            string ridNode = "";
+            if (QBSettings.rid != "")
+            {
+                ridNode = $"<rid>{QBSettings.rid}</rid>"; 
+            }
+
+            string xmlBody = "<qdbapi>" +
+                                $"<field fid=\"{QBSettings.document_field_id}\" filename=\"{DocumentData.originalPayload.document_name + DocumentData.originalPayload.document_type}\">{encodedDocument}</field>" +
+                                ridNode +
+                            "</qdbapi>";
+
+            byte[] byteArray = Encoding.UTF8.GetBytes(xmlBody);
+            request.ContentLength = byteArray.Length;
+
+            Stream dataStream = request.GetRequestStream();
+            dataStream.Write(byteArray, 0, byteArray.Length);
+            dataStream.Close();
+
+           //Console.WriteLine(encodedDocument);
+
+            WebResponse response = request.GetResponse();
+
+            using (dataStream = response.GetResponseStream())
+            {
+                StreamReader reader = new StreamReader(dataStream);
+                string responseFromServer = reader.ReadToEnd();
+                resultsData = responseFromServer;
+            }
+
+            //TODO: retrieve newly created rid and update DocumentData.originalPayload.delivery_method.settings.rid
+
+            if (QBAction == "API_AddRecord")
+            {
+                int pFrom = resultsData.IndexOf("<rid>") + "<rid>".Length;
+                int pTo = resultsData.LastIndexOf("</rid>");
+
+                string newRid = resultsData.Substring(pFrom, pTo - pFrom); 
+
+                QBSettings.rid = newRid;
+            }
+
+            return resultsData;
+        }
+
     }
 }

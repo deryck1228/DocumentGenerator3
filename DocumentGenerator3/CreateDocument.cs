@@ -52,7 +52,7 @@ namespace DocumentGenerator3
 
             foreach (var table in payload.child_datasets)
             {
-                Task<List<KeyValuePair<string, string>>> childTask = context.CallActivityAsync<List<KeyValuePair<string, string>>>($"CreateDocument_GetChildData_{table.settings.service}", table);
+                Task<List<KeyValuePair<string, CsvWithMetadata>>> childTask = context.CallActivityAsync<List<KeyValuePair<string, CsvWithMetadata>>>($"CreateDocument_GetChildData_{table.settings.service}", table);
                 parallelActivities.Add(childTask);
                 listOfChildTasks.Add(childTask);
             }
@@ -76,7 +76,7 @@ namespace DocumentGenerator3
             documentData.fileContents = templateTask.Result;
             documentData.parentData = parentDataTask.Result;
 
-            foreach (Task<List<KeyValuePair<string, string>>> childTask in listOfChildTasks)
+            foreach (Task<List<KeyValuePair<string, CsvWithMetadata>>> childTask in listOfChildTasks)
             {
                 documentData.listOfTableCSVs.AddRange(childTask.Result); 
             }
@@ -128,7 +128,7 @@ namespace DocumentGenerator3
         }
 
         [FunctionName("CreateDocument_GetChildData_quickbase")]
-        public static List<KeyValuePair<string, string>> GetChildDataFromQuickbase([ActivityTrigger] ChildDataset childDataset, ILogger log)
+        public async static Task<List<KeyValuePair<string, CsvWithMetadata>>> GetChildDataFromQuickbase([ActivityTrigger] ChildDataset childDataset, ILogger log)
         {
             log.LogInformation($"Fetching child data from Quickbase");
 
@@ -137,16 +137,29 @@ namespace DocumentGenerator3
             var service = new GetChildDatasetDataService_quickbase() { Metadata = tableMetadata };
 
             string csv = "";
-            List<KeyValuePair<string, string>> quickbaseListOfTableData = new List<KeyValuePair<string, string>>();
+            int countOfColumns = 0;
+            List<KeyValuePair<string, CsvWithMetadata>> quickbaseListOfTableData = new List<KeyValuePair<string, CsvWithMetadata>>();
+
+            List<string> thisGroupByList = new();
 
             do
             {
-                var childData = service.GetChildData();
+                var childData = await service.GetChildDataAsync();
+                countOfColumns = childData.countOfColumns;
                 csv = csv + childData.thisCSV + "\n";
+                thisGroupByList.AddRange(childData.thisGroupByList);
             } while ((tableMetadata.skip + tableMetadata.chunkSize) < tableMetadata.recordCount);
 
             string tableTitle = "[[" + tableMetadata.childDataset.table_dbid + "." + tableMetadata.childDataset.id + "]]";
-            quickbaseListOfTableData.Add(new KeyValuePair<string, string>(tableTitle, csv));
+
+            CsvWithMetadata csvWithMetadata = new CsvWithMetadata()
+            {
+                Csv = csv,
+                GroupByData = thisGroupByList,
+                CountOfColumns = countOfColumns
+            };
+
+            quickbaseListOfTableData.Add(new KeyValuePair<string, CsvWithMetadata>(tableTitle, csvWithMetadata));
 
             return quickbaseListOfTableData;
         }
@@ -167,6 +180,18 @@ namespace DocumentGenerator3
             log.LogInformation("Assembling data into word template document");
 
             var service = new AssembleDataInTemplate_word() { fileData = documentData };
+
+            byte[] completedDoc = service.AssembleData();
+
+            return completedDoc;
+        }
+
+        [FunctionName("CreateDocument_AddDataToTemplate_dc")]
+        public static byte[] AddDataToDocCoreTemplate([ActivityTrigger] DocumentData documentData, ILogger log)
+        {
+            log.LogInformation("Assembling data into word template document");
+
+            var service = new AssembleDataInTemplate_dc() { fileData = documentData };
 
             byte[] completedDoc = service.AssembleData();
 
@@ -248,5 +273,12 @@ namespace DocumentGenerator3
 
             return starter.CreateCheckStatusResponse(req, instanceId);
         }
+    }
+
+    public class CsvWithMetadata
+    {
+        public string Csv { get; set; }
+        public List<string> GroupByData { get; set; }
+        public int CountOfColumns { get; set; }
     }
 }

@@ -38,6 +38,14 @@ namespace DocumentGenerator3.ChildDatasetData
         /// </summary>
         public string query { get; set; }
         /// <summary>
+        /// The Quickbase sort order for a returned query, ex {"fieldId":6,"order":"ASC"}
+        /// </summary>
+        public string sortOrder { get; set; } = "";
+        /// <summary>
+        /// The Quickbase groupby clause for grouping a returned query, ex {"fieldId": 47,"grouping": "equal-values"}
+        /// </summary>
+        public string groupBy { get; set; } = "";
+        /// <summary>
         /// The comma-delimited ordered set of field id's for this child dataset
         /// </summary>
         public string field_order { get; set; }
@@ -45,5 +53,9 @@ namespace DocumentGenerator3.ChildDatasetData
         /// The headers for the child dataset, ordered in the same sequence sa the field_order attribute
         /// </summary>
         public string column_headers { get; set; }
+        public string table_font_family { get; set; } = "Times New Roman";
+        public string table_font_size { get; set; } = "18";
+        public string table_header_font_family { get; set; } = "";
+        public string table_header_font_size { get; set; } = "";
     }
 }

@@ -45,6 +45,7 @@ namespace DocumentGenerator3.BulletedListData
         /// </summary>
         public string fid { get; set; }
 
+
         public KeyValuePair<string, BulletedListConfiguration> GetBulletedListConfiguration()
         {
             

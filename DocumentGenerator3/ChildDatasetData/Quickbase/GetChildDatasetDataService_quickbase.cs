@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,7 +13,8 @@ namespace DocumentGenerator3.ChildDatasetData
     public class GetChildDatasetDataService_quickbase
     {
         public QBTableMetadata Metadata { get; set; }
-        public QBTableMetadata GetChildData()
+
+        public async Task<QBTableMetadata> GetChildDataAsync()
         {
             string authtoken = "QB-USER-TOKEN " + Metadata.childDataset.usertoken;
             string resultsData = "";
@@ -20,6 +22,21 @@ namespace DocumentGenerator3.ChildDatasetData
             string Uri = "";
             string json = "";
 
+            string sortClause = "";
+            string groupByClause = "";
+
+            if (Metadata.childDataset.sortOrder != "")
+            {
+                sortClause = $"\"sortBy\":[{Metadata.childDataset.sortOrder}],";
+                sortClause = sortClause.Replace("'", "\"");
+            }
+
+            if (Metadata.childDataset.groupBy != "")
+            {
+                groupByClause = $"\"groupBy\":[{Metadata.childDataset.groupBy}],";
+                groupByClause = groupByClause.Replace("'", "\"");
+                GetGroupByData();
+            }
 
             if (Metadata.childDataset.query == "")
             {
@@ -32,6 +49,123 @@ namespace DocumentGenerator3.ChildDatasetData
                 json = "{\"from\":\"" + Metadata.childDataset.table_dbid + "\"," +
                     "\"select\":[" + Metadata.childDataset.field_order + "]," +
                     "\"where\":\"" + Metadata.childDataset.query + "\"," +
+                    sortClause +
+                    groupByClause +
+                    "\"options\":{\"skip\":" + Metadata.skip + "}}";
+            }
+            //WebRequest request = WebRequest.Create(Uri);
+
+            //request.Method = "POST";
+            //request.ContentType = "application/json";
+            //request.Headers.Add("QB-Realm-Hostname", Metadata.childDataset.realm);
+            //request.Headers.Add("User-Agent", "Azure_Serverless_Functions");
+            //request.Headers.Add("Authorization", authtoken);
+
+            //byte[] byteArray = Encoding.UTF8.GetBytes(json);
+            //request.ContentLength = byteArray.Length;
+
+            //Stream dataStream = request.GetRequestStream();
+            //dataStream.Write(byteArray, 0, byteArray.Length);
+            //dataStream.Close();
+
+            //WebResponse response = request.GetResponse();
+
+            //using (dataStream = response.GetResponseStream())
+            //{
+            //    StreamReader reader = new StreamReader(dataStream);
+            //    string responseFromServer = reader.ReadToEnd();
+            //    resultsData = responseFromServer;
+            //}
+
+            //response.Close();
+
+            var maxRetryAttempts = 5;
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("QB-Realm-Hostname", Metadata.childDataset.realm);
+            client.DefaultRequestHeaders.Add("User-Agent", "Azure_Serverless_Functions");
+            client.DefaultRequestHeaders.Add("Authorization", authtoken);
+
+            try
+            {
+                await RetryHelper.RetryOnExceptionAsync<HttpRequestException>
+                    (maxRetryAttempts, async () =>
+                    {
+                        var data = new StringContent(json, Encoding.UTF8, "application/json");
+                        var response = await client.PostAsync(Uri, data);
+                        resultsData = await response.Content.ReadAsStringAsync();
+                        response.EnsureSuccessStatusCode();
+                    });
+            }
+            catch (Exception ex)
+            {
+                //All retries here are failed.
+                Console.WriteLine("Exception: " + ex.Message);
+            }
+
+            JObject jsonResponse = JObject.Parse(resultsData);
+            var items = jsonResponse.GetValue("data");
+            var x = (JArray)jsonResponse["data"];
+            string csv = "";
+
+            var columnHeaders = Metadata.childDataset.column_headers.Split(',').ToList();
+            Metadata.countOfColumns = columnHeaders.Count;
+            var fieldOrder = Metadata.childDataset.field_order.Split(',').Select(Int32.Parse).ToList();
+
+            if (columnHeaders.Count != 1 && columnHeaders[0] != "")
+            {
+                csv = ConvertToCsvString(items, columnHeaders, fieldOrder);
+            }
+
+            var metadata = jsonResponse.GetValue("metadata");
+            Metadata.recordCount = Convert.ToInt32(metadata["totalRecords"].ToString());
+            Metadata.skip = Metadata.skip + Metadata.chunkSize;
+            if (Metadata.chunkSize == 0)
+            {
+                Metadata.chunkSize = Convert.ToInt32(metadata["numRecords"].ToString());
+            }
+
+            Metadata.thisCSV = csv;
+
+            return Metadata;
+        }
+
+        public QBTableMetadata GetChildData()
+        {
+            string authtoken = "QB-USER-TOKEN " + Metadata.childDataset.usertoken;
+            string resultsData = "";
+            var quickBaseValues = new List<KeyValuePair<string, string>>();
+            string Uri = "";
+            string json = "";
+
+            string sortClause = "";
+            string groupByClause = "";
+
+            if (Metadata.childDataset.sortOrder != "")
+            {
+                sortClause = $"\"sortBy\":[{Metadata.childDataset.sortOrder}],";
+                sortClause = sortClause.Replace("'", "\"");
+            }
+
+            if(Metadata.childDataset.groupBy != "")
+            {
+                groupByClause = $"\"groupBy\":[{Metadata.childDataset.groupBy}],";
+                groupByClause = groupByClause.Replace("'", "\"");
+                GetGroupByData();
+            }
+
+            if (Metadata.childDataset.query == "")
+            {
+                Uri = "https://api.quickbase.com/v1/reports/" + Metadata.childDataset.id + "/run?tableId=" + Metadata.childDataset.table_dbid;
+                json = "";
+            }
+            else
+            {
+                Uri = "https://api.quickbase.com/v1/records/query";
+                json = "{\"from\":\"" + Metadata.childDataset.table_dbid + "\"," +
+                    "\"select\":[" + Metadata.childDataset.field_order + "]," +
+                    "\"where\":\"" + Metadata.childDataset.query + "\"," +
+                    sortClause +
+                    groupByClause + 
                     "\"options\":{\"skip\":" + Metadata.skip + "}}";
             }
             WebRequest request = WebRequest.Create(Uri);
@@ -66,6 +200,7 @@ namespace DocumentGenerator3.ChildDatasetData
             string csv = "";
 
             var columnHeaders = Metadata.childDataset.column_headers.Split(',').ToList();
+            Metadata.countOfColumns = columnHeaders.Count;
             var fieldOrder = Metadata.childDataset.field_order.Split(',').Select(Int32.Parse).ToList();
 
             if (columnHeaders.Count != 1 && columnHeaders[0] != "")
@@ -84,6 +219,84 @@ namespace DocumentGenerator3.ChildDatasetData
             Metadata.thisCSV = csv;
 
             return Metadata;
+        }
+
+        private void GetGroupByData()
+        {
+            string authtoken = "QB-USER-TOKEN " + Metadata.childDataset.usertoken;
+            string resultsData = "";
+            var quickBaseValues = new List<KeyValuePair<string, string>>();
+            string Uri = "";
+            string json = "";
+
+            string sortClause = "";
+            string groupByClause = "";
+
+            if (Metadata.childDataset.sortOrder != "")
+            {
+                sortClause = $"\"sortBy\":[{Metadata.childDataset.sortOrder}],";
+                sortClause = sortClause.Replace("'", "\"");
+            }
+
+            if (Metadata.childDataset.groupBy != "")
+            {
+                groupByClause = $"\"groupBy\":[{Metadata.childDataset.groupBy}],";
+                groupByClause = groupByClause.Replace("'", "\"");
+            }
+
+            var groupBy = JObject.Parse(Metadata.childDataset.groupBy);
+            string groupByFid = groupBy["fieldId"].ToString();
+
+            if (Metadata.childDataset.query == "")
+            {
+                Uri = "https://api.quickbase.com/v1/reports/" + Metadata.childDataset.id + "/run?tableId=" + Metadata.childDataset.table_dbid;
+                json = "";
+            }
+            else
+            {
+                Uri = "https://api.quickbase.com/v1/records/query";
+                json = "{\"from\":\"" + Metadata.childDataset.table_dbid + "\"," +
+                    "\"select\":[" + groupByFid  + "]," +
+                    "\"where\":\"" + Metadata.childDataset.query + "\"," +
+                    sortClause +
+                    groupByClause +
+                    "\"options\":{\"skip\":" + Metadata.skip + "}}";
+            }
+            WebRequest request = WebRequest.Create(Uri);
+
+            request.Method = "POST";
+            request.ContentType = "application/json";
+            request.Headers.Add("QB-Realm-Hostname", Metadata.childDataset.realm);
+            request.Headers.Add("User-Agent", "Azure_Serverless_Functions");
+            request.Headers.Add("Authorization", authtoken);
+
+            byte[] byteArray = Encoding.UTF8.GetBytes(json);
+            request.ContentLength = byteArray.Length;
+
+            Stream dataStream = request.GetRequestStream();
+            dataStream.Write(byteArray, 0, byteArray.Length);
+            dataStream.Close();
+
+            WebResponse response = request.GetResponse();
+
+            using (dataStream = response.GetResponseStream())
+            {
+                StreamReader reader = new StreamReader(dataStream);
+                string responseFromServer = reader.ReadToEnd();
+                resultsData = responseFromServer;
+            }
+
+            response.Close();
+
+            JObject jsonResponse = JObject.Parse(resultsData);
+            var items = jsonResponse.GetValue("data");
+            var x = (JArray)jsonResponse["data"];
+
+            foreach(JObject item in items)
+            {
+                string groupByValue = item[groupByFid]["value"].ToString();
+                Metadata.thisGroupByList.Add(groupByValue);
+            }
         }
 
         private string ConvertToCsvString(JToken items, List<string> columnHeaders, List<int> fieldOrder)
@@ -118,7 +331,7 @@ namespace DocumentGenerator3.ChildDatasetData
 
                         }
                         string columnValue = itemsToken[i.ToString()]["value"].ToString();
-                        columnValue = columnValue.Replace(",", " ");
+                        columnValue = columnValue.Replace(",", "*%*"); //Replace commas with bizarre characters, for later handling when adding data to table
                         columnValue = columnValue.Replace("\n", " ").Replace("\r", " "); //replace newline character in value with space to avoid being parsed out during csv conversion
                         eachColumn.Add(columnValue);
 

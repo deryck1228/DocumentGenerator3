@@ -28,5 +28,13 @@ namespace DocumentGenerator3.ChildDatasetData
         /// The table data as a csv string
         /// </summary>
         public string thisCSV { get; set; }
+        /// <summary>
+        /// The list of the records group by field
+        /// </summary>
+        public List<string> thisGroupByList { get; set; } = new();
+        /// <summary>
+        /// The number of columns in the csv string
+        /// </summary>
+        public int countOfColumns { get;set; } = 0;
     }
 }

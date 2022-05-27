@@ -3,5 +3,6 @@
     public interface IChildSettings
     {
         string service { get; set; }
+        string id { get; set; }
     }
 }

@@ -42,6 +42,10 @@ namespace DocumentGenerator3.AdditionalDocumentsToBind
         /// The field id of the field in Quickbase in which the additional document resides
         /// </summary>
         public string file_attachemnt_fid { get; set; }
+        /// <summary>
+        /// The Quickbase sort order for a returned query, ex {"fieldId":6,"order":"ASC"}
+        /// </summary>
+        public string sortOrder { get; set; } = "";
 
         public List<KeyValuePair<string, string>> GetDocumentLinks()
         {
@@ -52,9 +56,18 @@ namespace DocumentGenerator3.AdditionalDocumentsToBind
             string resultsData = "";
             var quickBaseValues = new List<KeyValuePair<string, string>>();
 
+            string sortClause = "";
+
+            if(sortOrder != "")
+            {
+                sortClause = $"\"sortBy\":[{sortOrder}],";
+                sortClause = sortClause.Replace("'","\"");
+            }
+
             string Uri = "https://api.quickbase.com/v1/records/query";
             string json = "{\"from\":\"" + table_dbid + "\"," +
                 "\"select\":[3," + file_attachemnt_fid + "]," +
+                sortClause +
                 "\"where\":\"" + query + "\"}";
 
             WebRequest request = WebRequest.Create(Uri);

@@ -76,7 +76,13 @@ namespace DocumentGenerator3.ImageHandling
         {
             using (WebClient client = new WebClient())
             {
-                image_bytes = client.DownloadData(image_link);
+                try
+                {
+                    image_bytes = client.DownloadData(image_link);
+                }
+                catch (Exception)
+                {
+                }
 
             }
         }

@@ -54,7 +54,7 @@ namespace DocumentGenerator3.ChildDatasetData
         /// </summary>
         public string column_headers { get; set; }
         public string table_font_family { get; set; } = "Times New Roman";
-        public string table_font_size { get; set; } = "18";
+        public string table_font_size { get; set; } = "9";
         public string table_header_font_family { get; set; } = "";
         public string table_header_font_size { get; set; } = "";
     }

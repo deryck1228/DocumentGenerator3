@@ -523,35 +523,44 @@ namespace DocumentGenerator3.DocumentAssembly
 
             if (rowCopyProperties is not null)
             {
-                var runFontType = rowCopyProperties.GetFirstChild<ParagraphMarkRunProperties>().GetFirstChild<RunFonts>();
-                if (runFontType is not null)
+                var paragraphMarkRunProperties = rowCopyProperties.GetFirstChild<ParagraphMarkRunProperties>();
+                
+                if (paragraphMarkRunProperties is not null)
                 {
-                    var fontName = runFontType.Ascii;
-                    if (fontName != "")
+                    var runFontType = paragraphMarkRunProperties.GetFirstChild<RunFonts>();
+                    if (runFontType is not null)
                     {
-                        runProperties.AppendChild(new RunFonts() { Ascii = fontName });
+                        var fontName = runFontType.Ascii;
+                        if (fontName != "")
+                        {
+                            runProperties.AppendChild(new RunFonts() { Ascii = fontName });
+                        }
                     }
+                    //else
+                    //{
+                    //    runProperties.AppendChild(new RunFonts() { Ascii = "Times New Roman" });
+                    //}
+
+                    var runFontSize = rowCopyProperties.GetFirstChild<ParagraphMarkRunProperties>().GetFirstChild<FontSize>();
+
+                    if (runFontSize is not null)
+                    {
+                        var fontSize = runFontSize.Val;
+
+                        if (fontSize != "")
+                        {
+                            runProperties.AppendChild(new FontSize() { Val = fontSize });
+                        }
+                    }
+                    //else
+                    //{
+                    //    runProperties.AppendChild(new FontSize() { Val = "20" });
+                    //} 
                 }
-                //else
-                //{
-                //    runProperties.AppendChild(new RunFonts() { Ascii = "Times New Roman" });
-                //}
-
-                var runFontSize = rowCopyProperties.GetFirstChild<ParagraphMarkRunProperties>().GetFirstChild<FontSize>();
-
-                if (runFontSize is not null)
+                else
                 {
-                    var fontSize = runFontSize.Val;
-
-                    if (fontSize != "")
-                    {
-                        runProperties.AppendChild(new FontSize() { Val = fontSize });
-                    }
+                    rowCopyProperties.ParagraphMarkRunProperties = new ParagraphMarkRunProperties(new RunFonts(), new FontSize() );
                 }
-                //else
-                //{
-                //    runProperties.AppendChild(new FontSize() { Val = "20" });
-                //}
             }
 
             return runProperties;

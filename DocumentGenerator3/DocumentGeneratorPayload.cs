@@ -33,7 +33,7 @@ namespace DocumentGenerator3
         /// <summary>
         /// A list of locations and connection informatin for any child datasets
         /// </summary>
-        public List<ChildDataset> child_datasets { get; set; }
+        public List<ChildDataset> child_datasets { get; set; } = new List<ChildDataset>();
         /// <summary>
         /// The method and location for delivering the completed document
         /// </summary>

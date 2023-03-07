@@ -23,6 +23,10 @@ namespace DocumentGenerator3
         /// </summary>
         public string document_type { get; set; }
         /// <summary>
+        /// The timezone in which any date time data is to be displayed for the completed document
+        /// </summary>
+        public string document_display_timezone { get; set; } = "Eastern Standard Time";
+        /// <summary>
         /// The location where the template document is stored
         /// </summary>
         public TemplateLocation template_location { get; set; }

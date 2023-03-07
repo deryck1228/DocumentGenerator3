@@ -41,6 +41,7 @@ namespace DocumentGenerator3.ChildDatasetData
             if (Metadata.childDataset.query == "")
             {
                 Uri = "https://api.quickbase.com/v1/reports/" + Metadata.childDataset.id + "/run?tableId=" + Metadata.childDataset.table_dbid;
+                Uri = $"https://api.quickbase.com/v1/reports/{Metadata.childDataset.id}/run?tableId={Metadata.childDataset.table_dbid}";
                 json = "";
             }
             else
@@ -53,31 +54,7 @@ namespace DocumentGenerator3.ChildDatasetData
                     groupByClause +
                     "\"options\":{\"skip\":" + Metadata.skip + "}}";
             }
-            //WebRequest request = WebRequest.Create(Uri);
 
-            //request.Method = "POST";
-            //request.ContentType = "application/json";
-            //request.Headers.Add("QB-Realm-Hostname", Metadata.childDataset.realm);
-            //request.Headers.Add("User-Agent", "Azure_Serverless_Functions");
-            //request.Headers.Add("Authorization", authtoken);
-
-            //byte[] byteArray = Encoding.UTF8.GetBytes(json);
-            //request.ContentLength = byteArray.Length;
-
-            //Stream dataStream = request.GetRequestStream();
-            //dataStream.Write(byteArray, 0, byteArray.Length);
-            //dataStream.Close();
-
-            //WebResponse response = request.GetResponse();
-
-            //using (dataStream = response.GetResponseStream())
-            //{
-            //    StreamReader reader = new StreamReader(dataStream);
-            //    string responseFromServer = reader.ReadToEnd();
-            //    resultsData = responseFromServer;
-            //}
-
-            //response.Close();
 
             var maxRetryAttempts = 5;
             var client = new HttpClient();
@@ -104,6 +81,27 @@ namespace DocumentGenerator3.ChildDatasetData
 
             JObject jsonResponse = JObject.Parse(resultsData);
             var items = jsonResponse.GetValue("data");
+
+            //List<JToken> filteredItemList = new();
+            JArray filteredItemJArray = new();
+
+            if (Metadata.childDataset.summary_report_filter_fid != "")
+            {
+                foreach (var item in items)
+                {
+                    if (Metadata.childDataset.id == "25")
+                    {
+                        Console.WriteLine("");
+                    }
+
+                    if (item[Metadata.childDataset.summary_report_filter_fid]["value"].ToString() == Metadata.childDataset.summary_report_filter_value)
+                    {
+                        filteredItemJArray.Add(item);
+                    }
+
+                }
+            }
+            var filteredItems = jsonResponse.GetValue("data").Where(i => i[Metadata.childDataset.summary_report_filter_fid]["value"].ToString() == Metadata.childDataset.summary_report_filter_value);
             var x = (JArray)jsonResponse["data"];
             string csv = "";
 
@@ -111,10 +109,17 @@ namespace DocumentGenerator3.ChildDatasetData
             Metadata.countOfColumns = columnHeaders.Count;
             var fieldOrder = Metadata.childDataset.field_order.Split(',').Select(Int32.Parse).ToList();
 
-            if (columnHeaders.Count != 1 && columnHeaders[0] != "")
+            //if (columnHeaders.Count != 1 && columnHeaders[0] != "")
+            //{
+            if (Metadata.childDataset.summary_report_filter_fid == "")
             {
-                csv = ConvertToCsvString(items, columnHeaders, fieldOrder);
+                csv = ConvertToCsvString(items, columnHeaders, fieldOrder); 
             }
+            else
+            {
+                csv = ConvertToCsvString(filteredItemJArray, columnHeaders, fieldOrder);
+            }
+            //}
 
             var metadata = jsonResponse.GetValue("metadata");
             Metadata.recordCount = Convert.ToInt32(metadata["totalRecords"].ToString());
@@ -196,8 +201,19 @@ namespace DocumentGenerator3.ChildDatasetData
 
             JObject jsonResponse = JObject.Parse(resultsData);
             var items = jsonResponse.GetValue("data");
+            var filteredItems = jsonResponse.GetValue("data").Where(i => i[Metadata.childDataset.summary_report_filter_fid]["value"].ToString() == Metadata.childDataset.summary_report_filter_value);
             var x = (JArray)jsonResponse["data"];
             string csv = "";
+
+            if (Metadata.childDataset.summary_report_filter_fid != "")
+            {
+                
+
+                foreach (var item in items)
+                {
+
+                }
+            }
 
             var columnHeaders = Metadata.childDataset.column_headers.Split(',').ToList();
             Metadata.countOfColumns = columnHeaders.Count;
@@ -302,7 +318,7 @@ namespace DocumentGenerator3.ChildDatasetData
         private string ConvertToCsvString(JToken items, List<string> columnHeaders, List<int> fieldOrder)
         {
             string csv;
-            if (items != null && items.Count() > 0)
+            if (items != null) //&& items.Count() > 0
             {
                 List<string> csvRows = new List<string>();
                 var timesThrough = 1;
@@ -315,6 +331,89 @@ namespace DocumentGenerator3.ChildDatasetData
                 int iterator = 0;
 
                 foreach (var itemsToken in jsonToken)
+                {
+                    List<string> eachHeader = new List<string>();
+                    List<string> eachColumn = new List<string>();
+
+                    foreach (var i in fieldOrder)
+                    {
+                        var specificItem = itemsToken[i.ToString()];
+
+                        if (timesThrough == 1)
+                        {
+                            string columnName = columnHeaders[iterator];
+                            eachHeader.Add(columnName);
+                            iterator++;
+
+                        }
+                        string columnValue = itemsToken[i.ToString()]["value"].ToString();
+                        columnValue = columnValue.Replace(",", "*%*"); //Replace commas with bizarre characters, for later handling when adding data to table
+                        columnValue = columnValue.Replace("\n", " ").Replace("\r", " "); //replace newline character in value with space to avoid being parsed out during csv conversion
+                        eachColumn.Add(columnValue);
+
+                    }
+                    if (timesThrough == 1)
+                    {
+                        string Headers = String.Join(",", eachHeader.ToArray());
+
+                        csvRows.Add(Headers);
+                    }
+
+                    timesThrough++;
+                    string eachRow = String.Join(",", eachColumn.ToArray());
+                    csvRows.Add(eachRow);
+                }
+                csv = string.Join("\n", csvRows.ToArray());
+            }
+            else
+            {
+                List<string> csvRows = new List<string>();
+                var timesThrough = 1;
+                string itemsStr = items.ToString();
+                var jsonToken = JArray.Parse(itemsStr);
+                int iterator = 0;
+
+                List<string> eachHeader = new List<string>();
+                foreach (var i in fieldOrder)
+                {
+                    if (timesThrough == 1 && columnHeaders[0] != "")
+                    {
+                        string columnName = columnHeaders[iterator];
+                        eachHeader.Add(columnName);
+                        iterator++;
+                    }
+                }
+                if (timesThrough == 1 && columnHeaders[0] != "")
+                {
+                    string Headers = String.Join(",", eachHeader.ToArray());
+
+                    csvRows.Add(Headers);
+                }
+
+                timesThrough++;
+                csv = string.Join("\n", csvRows.ToArray());
+            }
+
+            return csv;
+        }
+
+        private string ConvertToCsvString(JArray items, List<string> columnHeaders, List<int> fieldOrder)
+        {
+            string csv;
+            if (items != null) //&& items.Count() > 0
+            {
+                List<string> csvRows = new List<string>();
+                var timesThrough = 1;
+                if (Metadata.skip != 0 || columnHeaders[0] == "")
+                {
+                    timesThrough++;
+                }
+
+                //string itemsStr = items.ToString();
+                //var jsonToken = JArray.Parse(itemsStr);
+                int iterator = 0;
+
+                foreach (var itemsToken in items)
                 {
                     List<string> eachHeader = new List<string>();
                     List<string> eachColumn = new List<string>();

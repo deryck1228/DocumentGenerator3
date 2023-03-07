@@ -186,6 +186,18 @@ namespace DocumentGenerator3
             return completedDoc;
         }
 
+        [FunctionName("CreateDocument_AddDataToTemplate_excel")]
+        public static byte[] AddDataToExcelTemplate([ActivityTrigger] DocumentData documentData, ILogger log)
+        {
+            log.LogInformation("Assembling data into excel template document");
+
+            var service = new AssembleDataInTemplate_excel() { fileData = documentData };
+
+            byte[] completedDoc = service.AssembleData();
+
+            return completedDoc;
+        }
+
         [FunctionName("CreateDocument_AddDataToTemplate_dc")]
         public static byte[] AddDataToDocCoreTemplate([ActivityTrigger] DocumentData documentData, ILogger log)
         {

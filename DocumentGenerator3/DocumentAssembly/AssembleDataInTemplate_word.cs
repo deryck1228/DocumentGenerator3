@@ -389,6 +389,20 @@ namespace DocumentGenerator3.DocumentAssembly
                 runWithSlug.Remove(); 
             }
 
+            foreach (var header in wordDoc.MainDocumentPart.HeaderParts)
+            {
+                runWithSlug = header.RootElement.Descendants<Run>().FirstOrDefault(r => r.InnerText == imageSlug);
+
+                if (runWithSlug is not null)
+                {
+
+                    runWithSlug.Parent.AppendChild(new Run(element));
+
+                    runWithSlug.Remove();
+                } 
+            }
+            // header.RootElement.Descendants<Run>().FirstOrDefault(r => r.InnerText.Contains(elementSlug));
+
             wordDoc.MainDocumentPart.Document.Save();
         }
 

@@ -57,5 +57,7 @@ namespace DocumentGenerator3.ChildDatasetData
         public string table_font_size { get; set; } = "9";
         public string table_header_font_family { get; set; } = "";
         public string table_header_font_size { get; set; } = "";
+        public string summary_report_filter_fid { get; set; } = "";
+        public string summary_report_filter_value { get; set; } = "";
     }
 }

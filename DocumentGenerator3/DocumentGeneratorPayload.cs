@@ -5,10 +5,8 @@ using DocumentGenerator3.DocumentDelivery;
 using DocumentGenerator3.ImageHandling;
 using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
+using DocumentGenerator3.InteractableObjectsData;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DocumentGenerator3
 {
@@ -54,5 +52,10 @@ namespace DocumentGenerator3
         /// A list of bulleted list locations from which bulleted lists can be constructed and inserted into the document
         /// </summary>
         public List<BulletedListLocation> bulleted_lists { get; set; } = new();
+        /// <summary>
+        /// A list of objects specific to a particular template that need to be interacted with in some way, e.g. checking a checkbox
+        /// </summary>
+        public InteractableObjects interactable_objects { get; set; } = new();
+
     }
 }

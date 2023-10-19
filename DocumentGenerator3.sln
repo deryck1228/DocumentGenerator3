@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DocumentGenerator3.Tests", 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DocumentGeneratorUI", "DocumentGeneratorUI\DocumentGeneratorUI.csproj", "{C5813AB5-45F7-44A8-9DEE-DE2440A88166}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocGenScratchPad", "DocGenScratchPad\DocGenScratchPad.csproj", "{84CE5424-6DA8-4F22-AC81-082FD46354DF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C5813AB5-45F7-44A8-9DEE-DE2440A88166}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84CE5424-6DA8-4F22-AC81-082FD46354DF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84CE5424-6DA8-4F22-AC81-082FD46354DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84CE5424-6DA8-4F22-AC81-082FD46354DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84CE5424-6DA8-4F22-AC81-082FD46354DF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

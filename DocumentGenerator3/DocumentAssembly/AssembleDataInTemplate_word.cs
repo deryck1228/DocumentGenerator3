@@ -21,27 +21,12 @@ namespace DocumentGenerator3.DocumentAssembly
         public DocumentData fileData { get; set; }
         public byte[] AssembleData()
         {
-            WordprocessingDocument wDocument;
             Stream stream = new MemoryStream(0);
 
             stream.Write(fileData.fileContents, 0, (int)fileData.fileContents.Length);
             using (WordprocessingDocument wdDoc = WordprocessingDocument.Open(stream, true))
             {
-                DocumentSettingsPart settingsPart =
-                    wdDoc.MainDocumentPart.GetPartsOfType<DocumentSettingsPart>().First();
-
-                UpdateFieldsOnOpen updateFields = new UpdateFieldsOnOpen();
-                updateFields.Val = new OnOffValue(true);
-
-                settingsPart.Settings.PrependChild<UpdateFieldsOnOpen>(updateFields);
-                settingsPart.Settings.Save();
-
-                wDocument = wdDoc;
-                string docText = null;
-                using (StreamReader sr = new StreamReader(wdDoc.MainDocumentPart.GetStream()))
-                {
-                    docText = sr.ReadToEnd();
-                }
+                UpdateDocumentSettingsOnOpen(wdDoc);
 
                 if (fileData.bulletedListCollection.Count > 0)
                 {
@@ -57,17 +42,15 @@ namespace DocumentGenerator3.DocumentAssembly
                 }
 
                 PopulateAllRuns(wdDoc);
-
                 wdDoc.MainDocumentPart.Document.Save();
 
-
-                foreach(var child in fileData.originalPayload.child_datasets)
+                foreach (var child in fileData.originalPayload.child_datasets)
                 {
-                    if(child.settings is ChildSettings_quickbase)
+                    if (child.settings is ChildSettings_quickbase)
                     {
                         ChildSettings_quickbase settings = (ChildSettings_quickbase)child.settings;
                         var groupBy = settings.groupBy;
-                        if(groupBy != "")
+                        if (groupBy != "")
                         {
                             AddGroupingRowsToChildTables(wdDoc, settings);
                         }
@@ -75,29 +58,96 @@ namespace DocumentGenerator3.DocumentAssembly
                 }
 
                 AddFormattingToChildTables(wdDoc);
-
                 wdDoc.MainDocumentPart.Document.Save();
 
-                foreach (var img in fileData.originalPayload.image_locations)
-                {
-                    if (img.settings.image_bytes != null)
-                    {
-                        InsertPicture(wdDoc, img.settings);
-                    }
-                }
+                AddImages(wdDoc);
 
+                UpdateInteractableObjects(bod);
                 wdDoc.MainDocumentPart.Document.Save();
                 wdDoc.Close();
+
                 stream.Seek(0, SeekOrigin.Begin);
 
                 var bytes = new Byte[(int)stream.Length];
                 stream.Read(bytes, 0, (int)stream.Length);
                 fileData.fileContents = bytes;
-
             }
             stream.Close();
 
             return fileData.fileContents;
+        }
+
+        private void UpdateInteractableObjects(Body bod)
+        {
+            foreach (var interactableObject in fileData.originalPayload.interactable_objects.interactables)
+            {
+                var direction = interactableObject.beforeOrAfterText == "before" ? SearchDirection.Before : SearchDirection.After;
+                SetCheckboxRelativeToText(bod, interactableObject.searchText, interactableObject.value, direction);
+            }
+        }
+
+        private void AddImages(WordprocessingDocument wdDoc)
+        {
+            foreach (var img in fileData.originalPayload.image_locations)
+            {
+                if (img.settings.image_bytes != null)
+                {
+                    InsertPicture(wdDoc, img.settings);
+                }
+            }
+        }
+
+        private static void UpdateDocumentSettingsOnOpen(WordprocessingDocument wdDoc)
+        {
+            DocumentSettingsPart settingsPart =
+                wdDoc.MainDocumentPart.GetPartsOfType<DocumentSettingsPart>().First();
+
+            UpdateFieldsOnOpen updateFields = new UpdateFieldsOnOpen();
+            updateFields.Val = new OnOffValue(true);
+
+            settingsPart.Settings.PrependChild<UpdateFieldsOnOpen>(updateFields);
+            settingsPart.Settings.Save();
+        }
+
+        private void SetCheckboxRelativeToText(Body body, string searchText, bool isChecked, SearchDirection direction)
+        {
+            // Find the run with the given text
+            var runWithText = body.Descendants<Run>()
+                                    .FirstOrDefault(r => r.InnerText.Contains(searchText));
+
+            if (runWithText == null)
+            {
+                Console.WriteLine($"No text '{searchText}' found");
+                return;
+            }
+            // Depending on the direction, look for the checkbox before or after the text
+            IEnumerable<Run> targetRuns = direction == SearchDirection.After
+                                            ? runWithText.ElementsAfter().OfType<Run>()
+                                            : runWithText.ElementsBefore().OfType<Run>().Reverse();
+
+            SetCheckboxForRun(targetRuns, isChecked);  
+        }
+
+        private bool SetCheckboxForRun(IEnumerable<Run> runs, bool isChecked)
+        {
+            // Find the Run which contains the fldChar of type "begin"
+            var fldCharRun = runs.FirstOrDefault(r => r.Descendants<FieldChar>()
+                                                       .Any(fc => fc.FieldCharType == FieldCharValues.Begin));
+
+            if (fldCharRun == null)
+                return false;
+
+            // Locate the checkBox and modify its default value
+            var checkBox = fldCharRun.Descendants<CheckBox>().FirstOrDefault();
+            var checkBoxDefault = checkBox?.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Checked>();
+
+            if (checkBoxDefault != null)
+            {
+                checkBoxDefault.Val = isChecked;
+                return true;
+            }
+
+            return false;
         }
 
         private void AddGroupingRowsToChildTables(WordprocessingDocument wdDoc, ChildSettings_quickbase settings)
@@ -395,13 +445,11 @@ namespace DocumentGenerator3.DocumentAssembly
 
                 if (runWithSlug is not null)
                 {
-
                     runWithSlug.Parent.AppendChild(new Run(element));
 
                     runWithSlug.Remove();
                 } 
             }
-            // header.RootElement.Descendants<Run>().FirstOrDefault(r => r.InnerText.Contains(elementSlug));
 
             wordDoc.MainDocumentPart.Document.Save();
         }
@@ -506,21 +554,10 @@ namespace DocumentGenerator3.DocumentAssembly
                         RunProperties clonedProperties = (RunProperties)runProperties.CloneNode(true);
 
                         thisCell.AppendChild(new Run(new RunProperties(clonedProperties)));
-                        //thisCell.Append(new Run(new RunProperties(runProperties)));
-                        //foreach (Paragraph para in cell.Descendants<Paragraph>())
-                        //{
-                        //    foreach (Run run in thisNewRow.Descendants<Run>())
-                        //    {
-                        //        run.PrependChild<RunProperties>(runProperties);
-                        //        run.RunProperties = runProperties;
-                        //    }  
-                        //}
                     }
 
                     i++;
                 }
-
-                //lastRow.Remove();
             }
 
             return runProperties;
@@ -550,10 +587,6 @@ namespace DocumentGenerator3.DocumentAssembly
                             runProperties.AppendChild(new RunFonts() { Ascii = fontName });
                         }
                     }
-                    //else
-                    //{
-                    //    runProperties.AppendChild(new RunFonts() { Ascii = "Times New Roman" });
-                    //}
 
                     var runFontSize = rowCopyProperties.GetFirstChild<ParagraphMarkRunProperties>().GetFirstChild<FontSize>();
 
@@ -566,10 +599,6 @@ namespace DocumentGenerator3.DocumentAssembly
                             runProperties.AppendChild(new FontSize() { Val = fontSize });
                         }
                     }
-                    //else
-                    //{
-                    //    runProperties.AppendChild(new FontSize() { Val = "20" });
-                    //} 
                 }
                 else
                 {
@@ -608,9 +637,6 @@ namespace DocumentGenerator3.DocumentAssembly
                     }
 
                     Run run = parag.Elements<Run>().First();
-                    //run.Append(new RunProperties(new RunFonts() { Ascii = ""}, new FontSize() { Val = "20"}));
-                    //run.RunProperties = runProperties;
-
 
                     run.Append(new Text());
                     
@@ -620,8 +646,6 @@ namespace DocumentGenerator3.DocumentAssembly
                     text.Text = cellValue.Replace("*%*", ","); //.Replace("*|*","\n"); //Replace unusual character sequence with newline to reintroduce newlines when filling table cell; Replace unusual character sequence with comma to reintroduce commas when filling table cell
                 }
             }
-
-            //AddFormattingToTable(t, runProperties);
         }
 
         private static void AddFormattingToTable(Table t, RunProperties runProperties)

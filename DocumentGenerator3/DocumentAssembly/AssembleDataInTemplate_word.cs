@@ -12,7 +12,9 @@ using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 using DocumentGenerator3.BulletedListData;
 using DocumentGenerator3.ChildDatasetData;
-using Newtonsoft.Json.Linq;
+using DocumentFormat.OpenXml.Office2010.Word;
+using System.Reflection;
+using NumberingFormat = DocumentFormat.OpenXml.Wordprocessing.NumberingFormat;
 
 namespace DocumentGenerator3.DocumentAssembly
 {
@@ -82,7 +84,17 @@ namespace DocumentGenerator3.DocumentAssembly
             foreach (var interactableObject in fileData.originalPayload.interactable_objects.interactables)
             {
                 var direction = interactableObject.beforeOrAfterText == "before" ? SearchDirection.Before : SearchDirection.After;
-                SetCheckboxRelativeToText(bod, interactableObject.searchText, interactableObject.value, direction);
+
+                string methodName = $"Set{interactableObject.type}";
+
+                MethodInfo method = this.GetType().GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance);
+
+                if (method == null)
+                {
+                    throw new InvalidOperationException($"No method found for type '{interactableObject.type}'");
+                }
+
+                method.Invoke(this, new object[] { bod, interactableObject.searchText, interactableObject.value, direction, interactableObject.nthInstanceOfSearchText });
             }
         }
 
@@ -90,10 +102,8 @@ namespace DocumentGenerator3.DocumentAssembly
         {
             foreach (var img in fileData.originalPayload.image_locations)
             {
-                if (img.settings.image_bytes != null)
-                {
-                    InsertPicture(wdDoc, img.settings);
-                }
+                if (img.settings.image_bytes == null) continue;
+                InsertPicture(wdDoc, img.settings);
             }
         }
 
@@ -109,35 +119,78 @@ namespace DocumentGenerator3.DocumentAssembly
             settingsPart.Settings.Save();
         }
 
-        private void SetCheckboxRelativeToText(Body body, string searchText, bool isChecked, SearchDirection direction)
+        private void SetRadioButton_FormField(Body bod, string searchText, bool isChecked, SearchDirection direction)
         {
-            // Find the run with the given text
+
+        }
+
+        private void SetCheckbox_ContentControl(Body body, string searchText, bool isChecked, SearchDirection direction, int nthInstanceOfSearchText)
+        {
             var runWithText = body.Descendants<Run>()
+                                    .Skip(nthInstanceOfSearchText-1)
                                     .FirstOrDefault(r => r.InnerText.Contains(searchText));
+
+            if (runWithText == null) return;
+
+            IEnumerable<SdtElement> targetElements = direction == SearchDirection.After
+                                                        ? runWithText.ElementsAfter().OfType<SdtElement>()
+                                                        : runWithText.ElementsBefore().OfType<SdtElement>().Reverse();
+
+            SetContentControlCheckboxState(targetElements, isChecked);            
+        }
+
+        private void SetContentControlCheckboxState(IEnumerable<SdtElement> elements, bool isChecked)
+        {
+            var checkboxControl = elements.FirstOrDefault(s => s.SdtProperties.GetFirstChild<SdtContentCheckBox>() != null);
+            if (checkboxControl == null) return;
+
+            var checkbox = checkboxControl.SdtProperties.GetFirstChild<SdtContentCheckBox>();
+            var contentControlContent = checkboxControl.GetFirstChild<SdtContentRun>();
+            if (checkbox == null || contentControlContent == null) return;
+
+            checkbox.Checked.Val = isChecked ? OnOffValues.True : OnOffValues.False;
+            char checkboxSymbol = isChecked ? '\u2612' : '\u2610'; // Checked and unchecked symbols
+            char oppositeCheckboxSymbol = isChecked ? '\u2610' : '\u2612';
+
+            var run = (Run)contentControlContent.Descendants<Run>().Where(t => t.InnerText == "\u2612" || t.InnerText == "\u2610").FirstOrDefault();
+            if (run == null) return;
+
+            var textElement = (Text)run.Descendants<Text>().Where(t => t.Text == oppositeCheckboxSymbol.ToString()).FirstOrDefault();
+            if (textElement == null) return;
+
+            textElement.Text = checkboxSymbol.ToString();
+        }
+
+        private void SetCheckbox_FormField(Body body, string searchText, bool isChecked, SearchDirection direction, int nthInstanceOfSearchText)
+        {
+            //var runWithText = body.Descendants<Run>()
+                                    //.Skip(nthInstanceOfSearchText - 1)
+                                    //.FirstOrDefault(r => r.InnerText.Contains(searchText));
+
+            var allRuns = body.Descendants<Run>().Where(r => r.InnerText.Contains(searchText)).ToList();
+            if (allRuns.Count == 0) return;
+            var runWithText = allRuns[nthInstanceOfSearchText - 1];
 
             if (runWithText == null)
             {
                 Console.WriteLine($"No text '{searchText}' found");
                 return;
             }
-            // Depending on the direction, look for the checkbox before or after the text
+
             IEnumerable<Run> targetRuns = direction == SearchDirection.After
                                             ? runWithText.ElementsAfter().OfType<Run>()
                                             : runWithText.ElementsBefore().OfType<Run>().Reverse();
 
-            SetCheckboxForRun(targetRuns, isChecked);  
+            SetCheckboxForRun(targetRuns, isChecked, direction);  
         }
 
-        private bool SetCheckboxForRun(IEnumerable<Run> runs, bool isChecked)
+        private bool SetCheckboxForRun(IEnumerable<Run> runs, bool isChecked, SearchDirection direction)
         {
-            // Find the Run which contains the fldChar of type "begin"
             var fldCharRun = runs.FirstOrDefault(r => r.Descendants<FieldChar>()
-                                                       .Any(fc => fc.FieldCharType == FieldCharValues.Begin));
+                           .Any(fc => fc.FieldCharType == FieldCharValues.Begin));
 
-            if (fldCharRun == null)
-                return false;
+            if (fldCharRun == null) return false;
 
-            // Locate the checkBox and modify its default value
             var checkBox = fldCharRun.Descendants<CheckBox>().FirstOrDefault();
             var checkBoxDefault = checkBox?.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Checked>();
 
@@ -146,6 +199,8 @@ namespace DocumentGenerator3.DocumentAssembly
                 checkBoxDefault.Val = isChecked;
                 return true;
             }
+
+            checkBox.Append(new DocumentFormat.OpenXml.Wordprocessing.Checked() { Val = isChecked });
 
             return false;
         }
@@ -171,53 +226,49 @@ namespace DocumentGenerator3.DocumentAssembly
                     int groupingIndex = 1;
                     foreach (var line in fileData.listOfTableCSVs)
                     {
-                        if (line.Key.Contains(settingsId))
+                        if (!line.Key.Contains(settingsId)) continue;
+                        string previousEntry = "";
+                        int offset = 0;
+
+                        foreach (var grouping in line.Value.GroupByData)
                         {
-                            string previousEntry = "";
-                            int offset = 0;
 
-                            foreach (var grouping in line.Value.GroupByData)
+                            if (previousEntry != grouping)
                             {
+                                var allRows = tbl.Elements<TableRow>().ToList();
 
-                                if (previousEntry != grouping)
+                                TableRow currentRow = allRows[groupingIndex + offset];
+                                TableCellProperties cellOneProperties = new TableCellProperties();
+                                cellOneProperties.Append(new HorizontalMerge()
                                 {
-                                    var allRows = tbl.Elements<TableRow>().ToList();
+                                    Val = MergedCellValues.Restart
+                                });
+                                cellOneProperties.Append(new TableCellVerticalAlignment() { Val = TableVerticalAlignmentValues.Center });
+                                cellOneProperties.Append(new Shading() { Color = "auto", Fill = "#8A8A8D" });
 
-                                    TableRow currentRow = allRows[groupingIndex + offset];
-                                    TableCellProperties cellOneProperties = new TableCellProperties();
-                                    cellOneProperties.Append(new HorizontalMerge()
+                                ParagraphProperties paragraphProperties = new ParagraphProperties(new Justification() { Val = JustificationValues.Center });
+
+                                TableRow newRow = new TableRow(new TableCell(cellOneProperties, new Paragraph(paragraphProperties, new Run(new RunProperties(new Text(grouping))))));
+
+                                for (int i = 1; i < line.Value.CountOfColumns; i++)
+                                {
+                                    TableCellProperties additionalCellsProperties = new TableCellProperties();
+                                    additionalCellsProperties.Append(new HorizontalMerge()
                                     {
-                                        Val = MergedCellValues.Restart
+                                        Val = MergedCellValues.Continue
                                     });
-                                    cellOneProperties.Append(new TableCellVerticalAlignment() { Val = TableVerticalAlignmentValues.Center });
-                                    cellOneProperties.Append(new Shading() { Color = "auto", Fill = "#8A8A8D" });
-
-                                    //var cellFontColor = new DocumentFormat.OpenXml.Office2013.Word.Color() { Val = "white" };
-
-                                    ParagraphProperties paragraphProperties = new ParagraphProperties(new Justification() { Val = JustificationValues.Center });
-
-                                    TableRow newRow = new TableRow(new TableCell(cellOneProperties, new Paragraph(paragraphProperties, new Run(new RunProperties(new Text(grouping))))));
-
-                                    for(int i = 1; i < line.Value.CountOfColumns; i++)
-                                    {
-                                        TableCellProperties additionalCellsProperties = new TableCellProperties();
-                                        additionalCellsProperties.Append(new HorizontalMerge()
-                                        {
-                                            Val = MergedCellValues.Continue
-                                        });
-                                        additionalCellsProperties.Append(new TableCellVerticalAlignment() { Val = TableVerticalAlignmentValues.Center });
-                                        ParagraphProperties cellParagraphProperties = new ParagraphProperties(new Justification() { Val = JustificationValues.Center });
-                                        var newCell = new TableCell(additionalCellsProperties, new Paragraph(cellParagraphProperties, new Run(new Text(grouping))));
-                                        newRow.AppendChild(newCell);
-                                    }
-
-                                    currentRow.InsertBeforeSelf(newRow);
-                                    previousEntry = grouping;
-                                    offset++;
+                                    additionalCellsProperties.Append(new TableCellVerticalAlignment() { Val = TableVerticalAlignmentValues.Center });
+                                    ParagraphProperties cellParagraphProperties = new ParagraphProperties(new Justification() { Val = JustificationValues.Center });
+                                    var newCell = new TableCell(additionalCellsProperties, new Paragraph(cellParagraphProperties, new Run(new Text(grouping))));
+                                    newRow.AppendChild(newCell);
                                 }
 
-                                groupingIndex ++;
+                                currentRow.InsertBeforeSelf(newRow);
+                                previousEntry = grouping;
+                                offset++;
                             }
+
+                            groupingIndex++;
                         }
 
                     }

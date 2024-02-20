@@ -3,5 +3,6 @@
     public interface IInteractable
     {
         string type { get; set; }
+        int nthInstanceOfSearchText { get; set; }
     }
 }

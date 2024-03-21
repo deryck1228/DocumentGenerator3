@@ -7,11 +7,17 @@ using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.TemplateData;
 using DocumentGenerator3.InteractableObjectsData;
 using System.Collections.Generic;
+using DocumentGenerator3.LoggingData;
+using System;
 
 namespace DocumentGenerator3
 {
     public class DocumentGeneratorPayload
     {
+        /// <summary>
+        /// The unique id of a specific execution of the document generator, defaulting to a GUID if none is provided externally
+        /// </summary>
+        public string execution_id { get; set; } = Guid.NewGuid().ToString();
         /// <summary>
         /// The name of the finished document
         /// </summary>
@@ -56,6 +62,10 @@ namespace DocumentGenerator3
         /// A list of objects specific to a particular template that need to be interacted with in some way, e.g. checking a checkbox
         /// </summary>
         public InteractableObjects interactable_objects { get; set; } = new();
+        /// <summary>
+        /// The method and location for delivering logging data
+        /// </summary>
+        public LoggingMethod logging_method { get; set; }
 
     }
 }

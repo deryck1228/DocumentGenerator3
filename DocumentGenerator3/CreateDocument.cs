@@ -10,6 +10,7 @@ using DocumentGenerator3.ChildDatasetData;
 using DocumentGenerator3.DocumentAssembly;
 using DocumentGenerator3.DocumentDelivery;
 using DocumentGenerator3.ImageHandling;
+using DocumentGenerator3.LoggingData.Quickbase;
 using DocumentGenerator3.ParentDatasetData;
 using DocumentGenerator3.PdfConversion;
 using DocumentGenerator3.TemplateData;
@@ -37,15 +38,25 @@ namespace DocumentGenerator3
 
             var payload = context.GetInput<DocumentGeneratorPayload>();
 
-            DocumentData documentData = new DocumentData() { originalPayload = payload};
+            DocumentData documentData = new DocumentData() { originalPayload = payload };
 
             var parallelActivities = new List<Task>();
             var listOfChildTasks = new List<Task>();
             var listOfImageDownloads = new List<Task>();
             var listOfBulletedListConfigurations = new List<Task>();
 
-            Task<byte[]> templateTask = context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
-            parallelActivities.Add(templateTask);
+            Task<byte[]> templateTask;
+
+            try
+            {
+                templateTask = GetSuccessfulTemplate(context, payload);
+                parallelActivities.Add(templateTask);
+            }
+            catch (FunctionFailedException ex)
+            {
+                outputs.Add(ex.InnerException.Message);
+                return outputs;
+            }
 
             Task<List<KeyValuePair<string, string>>> parentDataTask = context.CallActivityAsync<List<KeyValuePair<string, string>>>($"CreateDocument_GetParentData_{payload.parent_dataset.settings.service}", payload);
             parallelActivities.Add(parentDataTask);
@@ -57,28 +68,36 @@ namespace DocumentGenerator3
                 listOfChildTasks.Add(childTask);
             }
 
-            foreach( ImageLocation imageLink in payload.image_locations)
+            foreach (ImageLocation imageLink in payload.image_locations)
             {
                 Task<ImageLocation> imageTask = context.CallActivityAsync<ImageLocation>($"CreateDocument_GetImage_{imageLink.settings.service}", imageLink);
                 parallelActivities.Add(imageTask);
                 listOfImageDownloads.Add(imageTask);
             }
 
-            foreach( var listLocation in payload.bulleted_lists)
+            foreach (var listLocation in payload.bulleted_lists)
             {
                 Task<KeyValuePair<string, BulletedListConfiguration>> bulletedListTask = context.CallActivityAsync<KeyValuePair<string, BulletedListConfiguration>>($"CreateDocument_GetBulletedListData_{listLocation.settings.service}", listLocation);
                 parallelActivities.Add(bulletedListTask);
                 listOfBulletedListConfigurations.Add(bulletedListTask);
             }
 
-            await Task.WhenAll(parallelActivities);
+            try
+            {
+                await Task.WhenAll(parallelActivities);
+            }
+            catch (FunctionFailedException ex)
+            {
+                outputs.Add(ex.InnerException.Message);
+                return outputs;
+            }
 
             documentData.fileContents = templateTask.Result;
             documentData.parentData = parentDataTask.Result;
 
             foreach (Task<List<KeyValuePair<string, CsvWithMetadata>>> childTask in listOfChildTasks)
             {
-                documentData.listOfTableCSVs.AddRange(childTask.Result); 
+                documentData.listOfTableCSVs.AddRange(childTask.Result);
             }
 
             foreach (Task<ImageLocation> task in listOfImageDownloads)
@@ -86,20 +105,34 @@ namespace DocumentGenerator3
                 documentData.originalPayload.image_locations.Add(task.Result);
             }
 
-            foreach(Task<KeyValuePair<string,BulletedListConfiguration>> bulletedListTask in listOfBulletedListConfigurations)
+            foreach (Task<KeyValuePair<string, BulletedListConfiguration>> bulletedListTask in listOfBulletedListConfigurations)
             {
                 documentData.bulletedListCollection.Add(bulletedListTask.Result);
             }
 
             documentData.fileContents = await context.CallActivityAsync<byte[]>($"CreateDocument_AddDataToTemplate_{payload.template_location.settings.template_type}", documentData);
 
-            if(payload.document_type == ".pdf")
+            if (payload.document_type == ".pdf")
             {
                 documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_ConvertToPdf_{pdfServiceName}", documentData);
             }
 
             documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_DeliverDocument_{payload.delivery_method.settings.service}", documentData);
 
+            if (payload.logging_method.settings.logging_level == "log")
+            {
+                DocGenLog successLog = new()
+                {
+                    ExecutionId = payload.execution_id,
+                    Message = "DocGen ran successfully",
+                    InnerMessage = "No errors reported"
+                };
+
+                documentData.DocGenLog = successLog;
+
+                documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_Log_{payload.logging_method.settings.service}", documentData);
+
+            }
             return outputs;
         }
 
@@ -110,7 +143,17 @@ namespace DocumentGenerator3
 
             var service = new GetTemplateDataService_quickbase() { Settings = (TemplateSettings_quickbase)originalPayload.template_location.settings };
 
-            var fileData = service.GetFileContents();
+            byte[] fileData;
+
+            try
+            {
+                fileData = service.GetFileContents();
+            }
+            catch (Exception ex)
+            {
+
+                throw ex;
+            }
 
             return fileData;
         }
@@ -120,7 +163,7 @@ namespace DocumentGenerator3
         {
             log.LogInformation($"Fetching parent data from Quickbase");
 
-            var service = new GetParentDatasetDataService_quickbase() { Settings = (ParentSettings_quickbase)originalPayload.parent_dataset.settings};
+            var service = new GetParentDatasetDataService_quickbase() { Settings = (ParentSettings_quickbase)originalPayload.parent_dataset.settings };
 
             var parentData = service.GetParentData();
 
@@ -132,7 +175,7 @@ namespace DocumentGenerator3
         {
             log.LogInformation($"Fetching child data from Quickbase");
 
-            QBTableMetadata tableMetadata = new QBTableMetadata() {  childDataset = childDataset.settings as ChildSettings_quickbase};
+            QBTableMetadata tableMetadata = new QBTableMetadata() { childDataset = childDataset.settings as ChildSettings_quickbase };
 
             var service = new GetChildDatasetDataService_quickbase() { Metadata = tableMetadata };
 
@@ -215,7 +258,19 @@ namespace DocumentGenerator3
         {
             log.LogInformation("Sending completed document to Quickbase");
 
-            var service = new DeliverDocumentService_quickbase() { DocumentData = documentData};
+            var service = new DeliverDocumentService_quickbase() { DocumentData = documentData };
+
+            DocumentData completedDocument = service.SendToQuickbase();
+
+            return completedDocument;
+        }
+
+        [FunctionName("CreateDocument_Log_quickbase")]
+        public static DocumentData SendLoggingDataToQuickbase([ActivityTrigger] DocumentData documentData, ILogger log)
+        {
+            log.LogInformation("Sending logging data to Quickbase");
+
+            var service = new LoggingService_quickbase() { DocumentData = documentData };
 
             DocumentData completedDocument = service.SendToQuickbase();
 
@@ -234,9 +289,9 @@ namespace DocumentGenerator3
             do
             {
                 documentData = await service.GetCompletedJob();
-            }while (documentData.CloudConvertStatus != "finished" && documentData.CloudConvertStatus != "error");
+            } while (documentData.CloudConvertStatus != "finished" && documentData.CloudConvertStatus != "error");
 
-            if(documentData.CloudConvertStatus == "error")
+            if (documentData.CloudConvertStatus == "error")
             {
                 throw new Exception("Conversion to pdf failed");
             }
@@ -285,12 +340,31 @@ namespace DocumentGenerator3
 
             return starter.CreateCheckStatusResponse(req, instanceId);
         }
-    }
 
-    public class CsvWithMetadata
-    {
-        public string Csv { get; set; }
-        public List<string> GroupByData { get; set; }
-        public int CountOfColumns { get; set; }
+
+        private async static Task<byte[]> GetSuccessfulTemplate(IDurableOrchestrationContext context, DocumentGeneratorPayload payload)
+        {
+            DocumentData documentData = new DocumentData() { originalPayload = payload };
+
+            try
+            {
+                return await context.CallActivityAsync<byte[]>($"CreateDocument_GetTemplate_{payload.template_location.settings.service}", payload);
+            }
+            catch(Exception e)
+            {
+                DocGenLog successLog = new()
+                {
+                    ExecutionId = payload.execution_id,
+                    Message = "Error Fetching Template Document",
+                    InnerMessage = e.StackTrace.ToString()
+                };
+
+                documentData.DocGenLog = successLog;
+
+                documentData = await context.CallActivityAsync<DocumentData>($"CreateDocument_Log_{payload.logging_method.settings.service}", documentData);
+            }
+
+            return null;
+        }
     }
 }

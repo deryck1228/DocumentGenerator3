@@ -163,10 +163,20 @@ namespace DocumentGenerator3.PdfConversion
         private CloudConvertPayload CreateCloudConvertPayload(string encodedDocument)
         {
             CloudConvertPayload payload = new CloudConvertPayload { tasks = new CloudConvertTasks() };
+
+            string extension = ".docx";
+
+            switch (DocumentData.originalPayload.template_location.settings.template_type.ToLower())
+            {
+                case "excel":
+                    extension = ".xlsx";
+                    break;
+            }
+
             payload.tasks.import = new CloudConvertImport
             {
                 file = encodedDocument,
-                filename = DocumentData.originalPayload.document_name + ".docx",
+                filename = DocumentData.originalPayload.document_name + extension,
                 operation = "import/base64"
             };
             payload.tasks.task = new CloudConvertTask

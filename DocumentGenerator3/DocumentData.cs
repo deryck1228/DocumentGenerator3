@@ -1,4 +1,5 @@
-﻿using DocumentGenerator3.BulletedListData;
+﻿using DocumentFormat.OpenXml.Office2013.Excel;
+using DocumentGenerator3.BulletedListData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,5 +23,13 @@ namespace DocumentGenerator3
         public string CloudConvertStatus { get; set; } = "";
         public string CloudConvertFileDownloadURL { get; set; }
         public List<KeyValuePair<string, string>> CloudConvertDocumentLinks { get; set; } = new List<KeyValuePair<string, string>>();
+        public DocGenLog DocGenLog { get; set; } = new();
+    }
+
+    public class DocGenLog
+    {
+        public string ExecutionId { get; set; }
+        public string Message { get; set; }
+        public string InnerMessage { get; set; }
     }
 }
